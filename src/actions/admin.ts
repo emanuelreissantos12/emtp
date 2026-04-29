@@ -22,43 +22,134 @@ async function requireAdmin() {
 }
 
 // ============================================================
-// Criar dupla
+// Criar dupla com conta de acesso e entrada no ranking
 // ============================================================
 
-export async function createTeam(formData: FormData) {
+export async function createTeamWithAccount(formData: FormData): Promise<{ password: string }> {
   const { profile, admin } = await requireAdmin()
 
-  const data = {
-    tournament_id: formData.get('tournament_id') as string,
-    category_id: formData.get('category_id') as string,
-    name: formData.get('name') as string,
-    player1_name: formData.get('player1_name') as string,
-    player1_email: formData.get('player1_email') as string,
-    player1_phone: formData.get('player1_phone') as string | null,
-    player1_nif: formData.get('player1_nif') as string | null,
-    player1_dob: formData.get('player1_dob') as string | null,
-    player1_address: formData.get('player1_address') as string | null,
-    player2_name: formData.get('player2_name') as string,
-    player2_email: formData.get('player2_email') as string,
-    player2_phone: formData.get('player2_phone') as string | null,
-    player2_nif: formData.get('player2_nif') as string | null,
-    player2_dob: formData.get('player2_dob') as string | null,
-    player2_address: formData.get('player2_address') as string | null,
+  const tournamentId = formData.get('tournament_id') as string
+  const categoryId = formData.get('category_id') as string
+  const name = formData.get('name') as string
+  const player1Name = formData.get('player1_name') as string
+  const player1Email = formData.get('player1_email') as string
+  const player2Name = formData.get('player2_name') as string
+  const player2Email = (formData.get('player2_email') as string) || null
+
+  if (!tournamentId || !categoryId || !name || !player1Name || !player1Email) {
+    throw new Error('Preenche todos os campos obrigatórios')
   }
 
-  const { data: team, error } = await admin.from('teams').insert(data).select().single()
-  if (error) throw new Error('Erro ao criar dupla: ' + error.message)
+  // Gera password aleatória
+  const password = Math.random().toString(36).slice(-8) + 'A1!'
+
+  // Cria a conta de auth
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+    email: player1Email,
+    password,
+    email_confirm: true,
+  })
+  if (authError) throw new Error('Erro ao criar conta: ' + authError.message)
+
+  // Aguarda trigger criar o profile (ou cria manualmente se não existir)
+  await new Promise((r) => setTimeout(r, 500))
+  const { data: authProfile } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('auth_user_id', authData.user.id)
+    .maybeSingle()
+
+  let profileId = authProfile?.id
+  if (!profileId) {
+    const { data: newProfile } = await admin
+      .from('profiles')
+      .insert({ auth_user_id: authData.user.id, name: player1Name, email: player1Email, role: 'team_captain' })
+      .select('id')
+      .single()
+    profileId = newProfile?.id
+  } else {
+    await admin.from('profiles').update({ name: player1Name, email: player1Email }).eq('id', profileId)
+  }
+
+  // Cria a equipa
+  const { data: team, error: teamError } = await admin
+    .from('teams')
+    .insert({
+      tournament_id: tournamentId,
+      category_id: categoryId,
+      name,
+      player1_name: player1Name,
+      player1_email: player1Email,
+      player2_name: player2Name,
+      player2_email: player2Email,
+      captain_profile_id: profileId,
+    })
+    .select()
+    .single()
+  if (teamError) throw new Error('Erro ao criar dupla: ' + teamError.message)
+
+  // Atualiza o profile com a equipa
+  if (profileId) {
+    await admin.from('profiles').update({ team_id: team.id }).eq('id', profileId)
+  }
+
+  // Adiciona ao ranking na última posição
+  const { data: existingRankings } = await admin
+    .from('rankings')
+    .select('position')
+    .eq('category_id', categoryId)
+    .order('position', { ascending: false })
+    .limit(1)
+  const nextPosition = (existingRankings?.[0]?.position ?? 0) + 1
+
+  await admin.from('rankings').insert({
+    tournament_id: tournamentId,
+    category_id: categoryId,
+    team_id: team.id,
+    position: nextPosition,
+  })
 
   await admin.from('audit_logs').insert({
     actor_profile_id: profile.id,
     action: 'team.created',
     entity_type: 'teams',
     entity_id: team.id,
-    metadata: { name: data.name },
+    metadata: { name },
   })
 
   revalidatePath('/admin/teams')
+  revalidatePath('/admin/ranking')
   revalidatePath('/ranking')
+
+  return { password }
+}
+
+// ============================================================
+// Reset password de uma dupla
+// ============================================================
+
+export async function resetTeamPassword(teamId: string): Promise<{ email: string; password: string }> {
+  const { admin } = await requireAdmin()
+
+  const { data: team } = await admin
+    .from('teams')
+    .select('player1_email, captain_profile_id')
+    .eq('id', teamId)
+    .single()
+  if (!team) throw new Error('Dupla não encontrada')
+
+  const { data: profileData } = await admin
+    .from('profiles')
+    .select('auth_user_id')
+    .eq('id', team.captain_profile_id)
+    .single()
+  if (!profileData?.auth_user_id) throw new Error('Conta não encontrada')
+
+  const password = Math.random().toString(36).slice(-8) + 'A1!'
+  const { error } = await admin.auth.admin.updateUserById(profileData.auth_user_id, { password })
+  if (error) throw new Error('Erro ao redefinir password: ' + error.message)
+
+  return { email: team.player1_email, password }
 }
 
 // ============================================================
@@ -100,12 +191,30 @@ export async function setRankingPosition(
 
   const { data: current } = await admin
     .from('rankings')
-    .select('position')
+    .select('position, tournament_id')
     .eq('team_id', teamId)
     .eq('category_id', categoryId)
     .single()
 
   if (!current) throw new Error('Equipa sem ranking nesta categoria')
+
+  // Se já está na posição pretendida, não faz nada
+  if (current.position === newPosition) return
+
+  // Usa posição temporária para evitar conflito de unique constraint
+  // Depois faz swap: a equipa na posição alvo vai para a posição atual
+  const { data: targetTeam } = await admin
+    .from('rankings')
+    .select('team_id')
+    .eq('category_id', categoryId)
+    .eq('position', newPosition)
+    .maybeSingle()
+
+  await admin.from('rankings').update({ position: 99999 }).eq('team_id', teamId).eq('category_id', categoryId)
+
+  if (targetTeam) {
+    await admin.from('rankings').update({ position: current.position }).eq('team_id', targetTeam.team_id).eq('category_id', categoryId)
+  }
 
   await admin
     .from('rankings')
