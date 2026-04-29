@@ -236,6 +236,14 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {/* Link para histórico */}
+      {team && (
+        <LinkButton href={`/ranking/equipa/${team.id}`} variant="outline" className="w-full">
+          <Swords className="size-4 mr-2" />
+          Ver histórico de jogos
+        </LinkButton>
+      )}
+
       {!team && (
         <Card>
           <CardContent className="pt-6 text-center text-muted-foreground">

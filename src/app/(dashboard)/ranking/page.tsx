@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LinkButton } from '@/components/ui/link-button'
 import { getEligibleTargets, getChallengeLockReason } from '@/lib/domain/challenge'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
 import { Trophy, Swords, Shield, TrendingUp, TrendingDown } from 'lucide-react'
 import type { RankingRow } from '@/types/database'
 
@@ -202,7 +203,10 @@ export default async function RankingPage() {
                         </div>
 
                         {/* Info equipa */}
-                        <div className="flex-1 min-w-0">
+                        <Link
+                          href={`/ranking/equipa/${entry.team_id}`}
+                          className="flex-1 min-w-0 hover:opacity-75 transition-opacity"
+                        >
                           <div className="flex items-center gap-1.5">
                             <span
                               className={cn(
@@ -224,7 +228,7 @@ export default async function RankingPage() {
                           <p className="text-xs text-muted-foreground truncate">
                             {entry.team?.player1_name} / {entry.team?.player2_name}
                           </p>
-                        </div>
+                        </Link>
 
                         {/* Estado / ação */}
                         {entry.team?.status === 'suspended' && (

@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RankingEditForm } from '@/components/admin/ranking-edit-form'
-import { Trophy } from 'lucide-react'
+import { LinkButton } from '@/components/ui/link-button'
+import { Trophy, Printer } from 'lucide-react'
 
 const CAT_LABEL: Record<string, string> = {
   M3: 'M3', M4: 'M4', M5: 'M5', F54: 'F5/4', MX: 'MX',
@@ -53,10 +54,16 @@ export default async function AdminRankingPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold flex items-center gap-2">
-        <Trophy className="size-6" />
-        Ranking
-      </h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Trophy className="size-6" />
+          Ranking
+        </h1>
+        <LinkButton href="/admin/ranking/print" variant="outline" className="gap-2">
+          <Printer className="size-4" />
+          Exportar PDF
+        </LinkButton>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         {sortedCats.map((cat) => {
