@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,30 +10,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
   const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     setLoading(false)
 
     if (error) {
-      toast.error(error.message || 'Erro ao enviar link.')
+      toast.error('Email ou password incorretos.')
       return
     }
 
-    setSent(true)
+    router.push('/')
+    router.refresh()
   }
 
   return (
@@ -44,46 +42,40 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-xl">Torneio Escada 2026</CardTitle>
           <CardDescription>
-            Acesso por convite. Introduz o teu email para receber o link de acesso.
+            Introduz as tuas credenciais para entrar.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {sent ? (
-            <div className="text-center space-y-2">
-              <div className="text-4xl">📧</div>
-              <p className="font-medium">Link enviado!</p>
-              <p className="text-sm text-muted-foreground">
-                Verifica o email <strong>{email}</strong> e clica no link para entrar.
-              </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSent(false)}
-                className="mt-4"
-              >
-                Usar outro email
-              </Button>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="o.teu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                autoFocus
+              />
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="o.teu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                  autoFocus
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'A enviar...' : 'Enviar link de acesso'}
-              </Button>
-            </form>
-          )}
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'A entrar...' : 'Entrar'}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
