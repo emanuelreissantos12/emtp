@@ -83,13 +83,34 @@ export function SlotCreateForm({ tournamentId, courts }: Props) {
         </div>
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Fim</label>
-          <input
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className="border rounded px-2 py-1.5 text-sm w-full bg-background"
-            step={1800}
-          />
+          <div className="space-y-1.5">
+            <div className="flex gap-1.5">
+              {[60, 90].map((mins) => (
+                <button
+                  key={mins}
+                  type="button"
+                  onClick={() => {
+                    if (!startTime) return
+                    const [h, m] = startTime.split(':').map(Number)
+                    const total = h * 60 + m + mins
+                    const endH = String(Math.floor(total / 60) % 24).padStart(2, '0')
+                    const endM = String(total % 60).padStart(2, '0')
+                    setEndTime(`${endH}:${endM}`)
+                  }}
+                  className="text-xs px-2 py-1 rounded border border-border hover:bg-muted/60 bg-background transition-colors"
+                >
+                  {mins} min
+                </button>
+              ))}
+            </div>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className="border rounded px-2 py-1.5 text-sm w-full bg-background"
+              step={1800}
+            />
+          </div>
         </div>
       </div>
       {error && <p className="text-red-500 text-xs">{error}</p>}

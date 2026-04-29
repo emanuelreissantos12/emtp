@@ -1,14 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LinkButton } from '@/components/ui/link-button'
 import { getEligibleTargets, getChallengeLockReason } from '@/lib/domain/challenge'
-import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { Trophy, Swords, Shield } from 'lucide-react'
-import type { RankingRow, Category } from '@/types/database'
+import { Trophy, Swords, Shield, TrendingUp, TrendingDown } from 'lucide-react'
+import type { RankingRow } from '@/types/database'
 
 export default async function RankingPage() {
   const supabase = await createClient()
@@ -55,6 +54,23 @@ export default async function RankingPage() {
     .select('*, team:teams(*)')
     .eq('tournament_id', tournament.id)
     .order('position')
+
+  // Eventos de ranking recentes (últimas 48h) para mostrar setas
+  const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+  const { data: recentEvents } = await supabase
+    .from('ranking_events')
+    .select('team_id, old_position, new_position')
+    .eq('tournament_id', tournament.id)
+    .gte('created_at', since48h)
+    .order('created_at', { ascending: false })
+
+  // Último evento por equipa
+  const latestEventByTeam: Record<string, { old: number; new: number }> = {}
+  for (const ev of recentEvents ?? []) {
+    if (!latestEventByTeam[ev.team_id]) {
+      latestEventByTeam[ev.team_id] = { old: ev.old_position, new: ev.new_position }
+    }
+  }
 
   // Equipa do utilizador
   const { data: myTeam } = await supabase
@@ -153,6 +169,9 @@ export default async function RankingPage() {
 
                   const canChallenge = isEligible && !lockReason && !isMyTeam
                   const isTop4 = entry.position <= 4
+                  const recentMove = latestEventByTeam[entry.team_id]
+                  const movedUp = recentMove && recentMove.new < recentMove.old
+                  const movedDown = recentMove && recentMove.new > recentMove.old
 
                   return (
                     <Card
@@ -164,14 +183,22 @@ export default async function RankingPage() {
                       )}
                     >
                       <CardContent className="pt-3 pb-3 flex items-center gap-3">
-                        {/* Posição */}
-                        <div
-                          className={cn(
-                            'text-lg font-black w-8 text-center shrink-0',
-                            entry.position <= 3 ? 'text-yellow-600' : 'text-muted-foreground'
+                        {/* Posição + seta */}
+                        <div className="flex flex-col items-center w-8 shrink-0">
+                          <span
+                            className={cn(
+                              'text-lg font-black leading-none',
+                              entry.position <= 3 ? 'text-yellow-600' : 'text-muted-foreground'
+                            )}
+                          >
+                            {entry.position}
+                          </span>
+                          {movedUp && (
+                            <TrendingUp className="size-3 text-green-500 mt-0.5" />
                           )}
-                        >
-                          {entry.position}
+                          {movedDown && (
+                            <TrendingDown className="size-3 text-red-500 mt-0.5" />
+                          )}
                         </div>
 
                         {/* Info equipa */}
