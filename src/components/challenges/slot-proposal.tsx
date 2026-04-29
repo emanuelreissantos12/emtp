@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { proposeTime, acceptProposal, confirmProposal } from '@/actions/challenges'
+import { proposeTime, confirmProposal } from '@/actions/challenges'
 import { toast } from 'sonner'
 import { Calendar, CheckCircle, Clock, ShieldCheck } from 'lucide-react'
 import { format } from 'date-fns'
@@ -37,7 +37,6 @@ export function SlotProposal({
   const minDate = tomorrow.toISOString().split('T')[0]
 
   const iAmProposer = pendingProposal && myTeamId && pendingProposal.proposed_by_team_id === myTeamId
-  const canAccept = pendingProposal && myTeamId && !iAmProposer && !isAdmin
 
   async function handlePropose() {
     if (!date) { toast.error('Escolhe uma data.'); return }
@@ -49,18 +48,6 @@ export function SlotProposal({
       setDate('')
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao propor horário')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleAccept() {
-    setLoading(true)
-    try {
-      await acceptProposal(pendingProposal.id)
-      toast.success('Horário aceite! Jogo agendado.')
-    } catch (e: any) {
-      toast.error(e.message ?? 'Erro ao aceitar')
     } finally {
       setLoading(false)
     }
@@ -98,19 +85,13 @@ export function SlotProposal({
           <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-300">
             <p className="text-sm font-medium flex items-center gap-2">
               <Clock className="size-4 text-yellow-600" />
-              {iAmProposer ? 'A aguardar resposta' : isAdmin ? 'Proposta para confirmar' : 'Proposta recebida'}
+              {isAdmin ? 'Proposta para confirmar' : 'A aguardar confirmação do admin'}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
               {formatProposal(pendingProposal)}
               {pendingProposal.proposed_court && ` — ${pendingProposal.proposed_court}`}
             </p>
             <div className="flex gap-2 mt-2 flex-wrap">
-              {canAccept && (
-                <Button size="sm" onClick={handleAccept} disabled={loading}>
-                  <CheckCircle className="size-3.5 mr-1" />
-                  Aceitar
-                </Button>
-              )}
               {isAdmin && (
                 <Button size="sm" onClick={handleConfirm} disabled={loading}>
                   <ShieldCheck className="size-3.5 mr-1" />
