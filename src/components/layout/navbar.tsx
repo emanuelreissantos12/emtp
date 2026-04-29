@@ -185,13 +185,6 @@ export function Navbar({ profile, unreadCount }: NavbarProps) {
           <Moon className="size-5 dark:hidden" />
           <span>Tema</span>
         </button>
-        <button
-          onClick={handleLogout}
-          className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs text-destructive"
-        >
-          <LogOut className="size-5" />
-          <span>Sair</span>
-        </button>
       </nav>
     </>
   )

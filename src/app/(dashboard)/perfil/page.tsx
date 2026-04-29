@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChangePasswordForm } from '@/components/profile/change-password-form'
+import { LogoutButton } from '@/components/profile/logout-button'
 import { User } from 'lucide-react'
 
 export default async function PerfilPage() {
@@ -44,6 +45,8 @@ export default async function PerfilPage() {
           <ChangePasswordForm />
         </CardContent>
       </Card>
+
+      <LogoutButton />
     </div>
   )
 }
