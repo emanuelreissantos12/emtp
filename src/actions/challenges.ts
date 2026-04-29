@@ -17,46 +17,7 @@ import {
 import type { SetScore } from '@/lib/domain/result'
 import type { RankingRow } from '@/types/database'
 
-// Aplica updates de ranking de forma segura, evitando conflitos de unique constraint
-// na coluna (category_id, position). Usa posição temporária 99999 para libertar a
-// posição do desafiante antes de fazer os shifts das duplas intermédias.
-async function applyRankingUpdatesToDB(
-  admin: ReturnType<typeof createAdminClient>,
-  updates: import('@/lib/domain/ranking').RankingUpdate[],
-  categoryId: string,
-  challengerTeamId: string,
-  meta: { tournament_id: string; challenge_id: string; created_by: string; reason: string }
-) {
-  const challengerUpdate = updates.find((u) => u.teamId === challengerTeamId)!
-  const shiftUpdates = updates
-    .filter((u) => u.teamId !== challengerTeamId)
-    .sort((a, b) => b.newPosition - a.newPosition) // mais alto novo primeiro (evita conflitos)
-
-  // 1. Move o desafiante para posição temporária para libertar a sua posição atual
-  await admin.from('rankings').update({ position: 99999 }).eq('team_id', challengerTeamId).eq('category_id', categoryId)
-
-  // 2. Shift das duplas intermédias (de baixo para cima na escada, ou seja, posição mais alta primeiro)
-  for (const u of shiftUpdates) {
-    await admin.from('rankings').update({ position: u.newPosition }).eq('team_id', u.teamId).eq('category_id', categoryId)
-  }
-
-  // 3. Coloca o desafiante na posição final
-  await admin.from('rankings').update({ position: challengerUpdate.newPosition }).eq('team_id', challengerTeamId).eq('category_id', categoryId)
-
-  // 4. Regista os eventos de ranking
-  for (const u of updates) {
-    await admin.from('ranking_events').insert({
-      tournament_id: meta.tournament_id,
-      category_id: categoryId,
-      challenge_id: meta.challenge_id,
-      team_id: u.teamId,
-      old_position: u.oldPosition,
-      new_position: u.newPosition,
-      reason: meta.reason,
-      created_by: meta.created_by,
-    })
-  }
-}
+import { applyRankingUpdatesToDB } from './ranking-helpers'
 
 async function getSessionProfile() {
   const supabase = await createClient()

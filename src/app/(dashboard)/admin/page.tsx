@@ -15,6 +15,7 @@ import {
   ShieldAlert,
   ChevronRight,
   CheckCircle,
+  ClipboardList,
 } from 'lucide-react'
 
 export default async function AdminDashboardPage() {
@@ -159,11 +160,11 @@ export default async function AdminDashboardPage() {
       {/* Links de gestão */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {[
+          { href: '/admin/resultados', label: 'Registar jogo', icon: ClipboardList },
           { href: '/admin/teams', label: 'Duplas', icon: Users },
           { href: '/admin/ranking', label: 'Ranking', icon: Trophy },
           { href: '/admin/challenges', label: 'Desafios', icon: Swords },
           { href: '/admin/invites', label: 'Convites', icon: Mail },
-          { href: '/admin/slots', label: 'Horários', icon: Clock },
         ].map(({ href, label, icon: Icon }) => (
           <LinkButton
             key={href}

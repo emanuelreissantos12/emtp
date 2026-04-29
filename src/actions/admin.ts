@@ -392,6 +392,122 @@ export async function createSlot(formData: FormData) {
 }
 
 // ============================================================
+// Registar jogo passado (admin)
+// ============================================================
+
+export async function registerPastMatch(formData: FormData) {
+  const { profile, admin } = await requireAdmin()
+  const { applyRankingUpdate } = await import('@/lib/domain/ranking')
+  const { applyRankingUpdatesToDB } = await import('./ranking-helpers')
+
+  const challengerTeamId = formData.get('challenger_team_id') as string
+  const challengedTeamId = formData.get('challenged_team_id') as string
+  const winnerSide = formData.get('winner_team_id') as string // 'challenger' | 'challenged'
+  const winnerTeamId = winnerSide === 'challenger' ? challengerTeamId : challengedTeamId
+  const playedAt = formData.get('played_at') as string | null
+
+  if (!challengerTeamId || !challengedTeamId || !winnerTeamId) {
+    throw new Error('Preenche todos os campos obrigatórios')
+  }
+  if (challengerTeamId === challengedTeamId) {
+    throw new Error('As duas duplas têm de ser diferentes')
+  }
+
+  // Recolhe sets
+  const sets: { challenger: number; challenged: number }[] = []
+  for (let i = 1; i <= 3; i++) {
+    const c = formData.get(`set_${i}_challenger`)
+    const d = formData.get(`set_${i}_challenged`)
+    if (c !== null && d !== null && c !== '' && d !== '') {
+      sets.push({ challenger: Number(c), challenged: Number(d) })
+    }
+  }
+
+  // Carrega as equipas para obter torneio/categoria
+  const { data: challengerTeam } = await admin
+    .from('teams')
+    .select('tournament_id, category_id')
+    .eq('id', challengerTeamId)
+    .single()
+  if (!challengerTeam) throw new Error('Dupla desafiante não encontrada')
+
+  // Cria desafio já completado
+  const { data: challenge, error: challengeError } = await admin
+    .from('challenges')
+    .insert({
+      tournament_id: challengerTeam.tournament_id,
+      category_id: challengerTeam.category_id,
+      challenger_team_id: challengerTeamId,
+      challenged_team_id: challengedTeamId,
+      created_by: profile.id,
+      status: 'completed',
+      ...(playedAt ? { deadline_at: playedAt } : {}),
+    })
+    .select()
+    .single()
+  if (challengeError) throw new Error('Erro ao criar desafio: ' + challengeError.message)
+
+  // Cria resultado já validado
+  const { data: result, error: resultError } = await admin
+    .from('match_results')
+    .insert({
+      challenge_id: challenge.id,
+      submitted_by_team_id: winnerTeamId,
+      winner_team_id: winnerTeamId,
+      status: 'validated',
+      validated_by_profile_id: profile.id,
+      validated_at: new Date().toISOString(),
+    })
+    .select()
+    .single()
+  if (resultError) throw new Error('Erro ao criar resultado: ' + resultError.message)
+
+  // Insere sets
+  if (sets.length > 0) {
+    await admin.from('match_sets').insert(
+      sets.map((s, i) => ({
+        match_result_id: result.id,
+        set_number: i + 1,
+        challenger_games: s.challenger,
+        challenged_games: s.challenged,
+      }))
+    )
+  }
+
+  // Atualiza ranking se o desafiante venceu
+  if (winnerTeamId === challengerTeamId) {
+    const { data: rankings } = await admin
+      .from('rankings')
+      .select('*')
+      .eq('category_id', challengerTeam.category_id)
+
+    if (rankings) {
+      const updates = applyRankingUpdate(rankings, challengerTeamId, challengedTeamId)
+      if (updates.length > 0) {
+        await applyRankingUpdatesToDB(admin, updates, challengerTeam.category_id, challengerTeamId, {
+          tournament_id: challengerTeam.tournament_id,
+          challenge_id: challenge.id,
+          created_by: profile.id,
+          reason: '[ADMIN] Jogo registado manualmente',
+        })
+      }
+    }
+  }
+
+  await admin.from('audit_logs').insert({
+    actor_profile_id: profile.id,
+    action: 'match.registered',
+    entity_type: 'challenges',
+    entity_id: challenge.id,
+    metadata: { challenger_team_id: challengerTeamId, challenged_team_id: challengedTeamId, winner_team_id: winnerTeamId },
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/resultados')
+  revalidatePath('/ranking')
+}
+
+// ============================================================
 // Adicionar dupla ao ranking
 // ============================================================
 
