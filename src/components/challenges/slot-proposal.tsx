@@ -70,10 +70,8 @@ export function SlotProposal({
     }
   }
 
-  const canAcceptPendingProposal =
-    pendingProposal &&
-    myTeamId &&
-    pendingProposal.proposed_by_team_id !== myTeamId
+  const iAmProposer = pendingProposal && myTeamId && pendingProposal.proposed_by_team_id === myTeamId
+  const canAcceptPendingProposal = pendingProposal && myTeamId && !iAmProposer
 
   return (
     <Card>
@@ -89,7 +87,7 @@ export function SlotProposal({
           <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-300">
             <p className="text-sm font-medium flex items-center gap-2">
               <Clock className="size-4 text-yellow-600" />
-              Proposta pendente
+              {iAmProposer ? 'A aguardar resposta' : 'Proposta recebida'}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
               {pendingProposal.slot?.court?.name} ·{' '}
@@ -99,8 +97,8 @@ export function SlotProposal({
                 { locale: ptBR }
               )}
             </p>
-            {canAcceptPendingProposal && (
-              <div className="flex gap-2 mt-2">
+            <div className="flex gap-2 mt-2">
+              {canAcceptPendingProposal && (
                 <Button
                   size="sm"
                   onClick={() => handleAccept(pendingProposal.id)}
@@ -109,25 +107,37 @@ export function SlotProposal({
                   <CheckCircle className="size-3.5 mr-1" />
                   Aceitar
                 </Button>
+              )}
+              {canPropose && !proposing && (
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => setProposing(true)}
                   disabled={loading}
                 >
-                  Contrapropor
+                  {iAmProposer ? 'Alterar proposta' : 'Sugerir outro'}
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
         {/* Lista de horários livres */}
         {(!pendingProposal || proposing) && canPropose && (
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              {proposing ? 'Escolhe outro horário:' : 'Propõe um horário:'}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                {proposing ? 'Escolhe outro horário:' : 'Propõe um horário:'}
+              </p>
+              {proposing && (
+                <button
+                  onClick={() => setProposing(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
             {freeSlots.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 Sem horários livres disponíveis. Contacta a organização.
