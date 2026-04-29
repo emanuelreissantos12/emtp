@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -8,21 +9,37 @@ export async function GET(request: Request) {
   const type = searchParams.get('type') as 'email' | 'recovery' | 'invite' | null
   const next = searchParams.get('next') ?? '/'
 
-  const supabase = await createClient()
+  const cookieStore = await cookies()
+
+  // Cria o redirect response primeiro — o Supabase escreve os cookies directamente nele
+  const successResponse = NextResponse.redirect(`${origin}${next}`)
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            successResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
-    }
+    if (!error) return successResponse
   }
 
   if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ token_hash, type })
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
-    }
+    if (!error) return successResponse
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`)
+  return NextResponse.redirect(`${origin}/login`)
 }
