@@ -121,10 +121,15 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+    background-image: url('/padel-bg.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+  }
+  body {
+    @apply text-foreground;
+    background: transparent;
   }
 }

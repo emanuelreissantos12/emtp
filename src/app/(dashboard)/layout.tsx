@@ -32,6 +32,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex flex-col min-h-screen">
+      <div className="fixed inset-0 bg-background/80 dark:bg-background/88 backdrop-blur-[2px] -z-10" />
       <Navbar profile={profile as Profile} unreadCount={unreadCount ?? 0} />
       <main className="flex-1 container mx-auto px-4 py-6 pb-24 md:pb-6 max-w-4xl">
         {children}
