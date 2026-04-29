@@ -1,0 +1,464 @@
+'use server'
+
+import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import {
+  getEligibleTargets,
+  getChallengeLockReason,
+} from '@/lib/domain/challenge'
+import { applyRankingUpdate } from '@/lib/domain/ranking'
+import { parseMatchResult } from '@/lib/domain/result'
+import {
+  buildChallengeReceivedNotification,
+  buildResultSubmittedNotification,
+  buildResultValidatedNotification,
+} from '@/lib/domain/notifications'
+import type { SetScore } from '@/lib/domain/result'
+import type { RankingRow } from '@/types/database'
+
+async function getSessionProfile() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Não autenticado')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('auth_user_id', user.id)
+    .single()
+  if (!profile) throw new Error('Perfil não encontrado')
+
+  return { supabase, profile }
+}
+
+// ============================================================
+// Criar desafio
+// ============================================================
+
+export async function createChallenge(formData: FormData) {
+  const { supabase, profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  const targetTeamId = formData.get('target_team_id') as string
+  if (!targetTeamId) throw new Error('Dupla alvo em falta')
+
+  // Encontra a equipa do capitão
+  const { data: myTeam } = await supabase
+    .from('teams')
+    .select('*, tournament_id, category_id')
+    .eq('captain_profile_id', profile.id)
+    .eq('status', 'active')
+    .maybeSingle()
+
+  if (!myTeam) throw new Error('Não tens uma dupla ativa neste torneio')
+
+  // Rankings da categoria
+  const { data: rankings } = await supabase
+    .from('rankings')
+    .select('*, team:teams(*)')
+    .eq('category_id', myTeam.category_id)
+    .order('position')
+
+  if (!rankings) throw new Error('Erro ao carregar ranking')
+
+  // Valida elegibilidade
+  const eligibleTargets = getEligibleTargets(myTeam.id, rankings as RankingRow[])
+  const isEligible = eligibleTargets.some((t) => t.team_id === targetTeamId)
+  if (!isEligible) {
+    throw new Error('Esta dupla não é um alvo elegível para desafio')
+  }
+
+  // Verifica locks
+  const { data: activeChallenges } = await supabase
+    .from('challenges')
+    .select('*')
+    .or(`challenger_team_id.eq.${myTeam.id},challenged_team_id.eq.${myTeam.id}`)
+    .not('status', 'in', '("completed","cancelled","expired")')
+
+  // Último adversário
+  const { data: lastChallenge } = await supabase
+    .from('challenges')
+    .select('*, result:match_results!inner(*)')
+    .or(`challenger_team_id.eq.${myTeam.id},challenged_team_id.eq.${myTeam.id}`)
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const lastOpponentId = lastChallenge
+    ? lastChallenge.challenger_team_id === myTeam.id
+      ? lastChallenge.challenged_team_id
+      : lastChallenge.challenger_team_id
+    : null
+
+  const iLostLast = lastChallenge?.result?.winner_team_id !== myTeam.id
+
+  const lockReason = getChallengeLockReason(
+    myTeam,
+    activeChallenges ?? [],
+    lastOpponentId,
+    targetTeamId,
+    !iLostLast
+  )
+  if (lockReason) throw new Error(lockReason)
+
+  // Verifica dupla alvo ativa
+  const { data: targetTeam } = await supabase
+    .from('teams')
+    .select('status')
+    .eq('id', targetTeamId)
+    .single()
+  if (targetTeam?.status !== 'active') {
+    throw new Error('A dupla alvo está suspensa ou retirada')
+  }
+
+  // Cria o desafio
+  const { data: challenge, error } = await admin
+    .from('challenges')
+    .insert({
+      tournament_id: myTeam.tournament_id,
+      category_id: myTeam.category_id,
+      challenger_team_id: myTeam.id,
+      challenged_team_id: targetTeamId,
+      created_by: profile.id,
+    })
+    .select()
+    .single()
+
+  if (error) throw new Error('Erro ao criar desafio: ' + error.message)
+
+  // Notificação para a dupla desafiada
+  const { data: targetProfile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq(
+      'id',
+      (await supabase.from('teams').select('captain_profile_id').eq('id', targetTeamId).single())
+        .data?.captain_profile_id
+    )
+    .maybeSingle()
+
+  if (targetProfile) {
+    const notif = buildChallengeReceivedNotification(myTeam.name, challenge.id)
+    await admin.from('notifications').insert({
+      profile_id: targetProfile.id,
+      ...notif,
+    })
+  }
+
+  // Audit log
+  await admin.from('audit_logs').insert({
+    actor_profile_id: profile.id,
+    action: 'challenge.created',
+    entity_type: 'challenges',
+    entity_id: challenge.id,
+    metadata: { challenger_team_id: myTeam.id, challenged_team_id: targetTeamId },
+  })
+
+  revalidatePath('/challenges')
+  redirect(`/challenges/${challenge.id}`)
+}
+
+// ============================================================
+// Submeter resultado
+// ============================================================
+
+export async function submitResult(
+  challengeId: string,
+  sets: SetScore[],
+  winnerTeamId: string
+) {
+  const { supabase, profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  // Valida o resultado pelas regras do torneio
+  const parsed = parseMatchResult(sets)
+  if (!parsed.valid) throw new Error(parsed.error ?? 'Resultado inválido')
+
+  // Verifica que o utilizador pertence a uma das duplas
+  const { data: challenge } = await supabase
+    .from('challenges')
+    .select('*, challenger_team:teams!challenges_challenger_team_id_fkey(*), challenged_team:teams!challenges_challenged_team_id_fkey(*)')
+    .eq('id', challengeId)
+    .single()
+
+  if (!challenge) throw new Error('Desafio não encontrado')
+  if (challenge.status !== 'scheduled' && challenge.status !== 'result_pending') {
+    throw new Error('Este desafio não está em estado de resultado')
+  }
+
+  const myTeam = [challenge.challenger_team, challenge.challenged_team].find(
+    (t) => t.captain_profile_id === profile.id
+  )
+  if (!myTeam && profile.role !== 'admin') {
+    throw new Error('Não tens permissão para submeter este resultado')
+  }
+
+  // Cria o resultado
+  const { data: result, error: resultError } = await admin
+    .from('match_results')
+    .insert({
+      challenge_id: challengeId,
+      submitted_by_team_id: myTeam?.id ?? challenge.challenger_team_id,
+      winner_team_id: winnerTeamId,
+      status: 'pending_validation',
+    })
+    .select()
+    .single()
+
+  if (resultError) throw new Error('Erro ao submeter resultado: ' + resultError.message)
+
+  // Insere os sets
+  const setsData = sets.map((s, i) => ({
+    match_result_id: result.id,
+    set_number: i + 1,
+    challenger_games: s.challenger,
+    challenged_games: s.challenged,
+  }))
+  await admin.from('match_sets').insert(setsData)
+
+  // Atualiza status do desafio
+  await admin
+    .from('challenges')
+    .update({ status: 'result_pending' })
+    .eq('id', challengeId)
+
+  // Notifica a outra dupla
+  const otherTeam =
+    myTeam?.id === challenge.challenger_team_id
+      ? challenge.challenged_team
+      : challenge.challenger_team
+
+  if (otherTeam?.captain_profile_id) {
+    const notif = buildResultSubmittedNotification(myTeam?.name ?? '', challengeId)
+    await admin.from('notifications').insert({
+      profile_id: otherTeam.captain_profile_id,
+      ...notif,
+    })
+  }
+
+  await admin.from('audit_logs').insert({
+    actor_profile_id: profile.id,
+    action: 'result.submitted',
+    entity_type: 'match_results',
+    entity_id: result.id,
+    metadata: { challenge_id: challengeId, winner_team_id: winnerTeamId },
+  })
+
+  revalidatePath(`/challenges/${challengeId}`)
+}
+
+// ============================================================
+// Validar resultado (pela outra dupla ou organização)
+// ============================================================
+
+export async function validateResult(resultId: string, accepted: boolean) {
+  const { supabase, profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  const { data: result } = await supabase
+    .from('match_results')
+    .select('*, challenge:challenges(*)')
+    .eq('id', resultId)
+    .single()
+
+  if (!result) throw new Error('Resultado não encontrado')
+  if (result.status !== 'pending_validation') {
+    throw new Error('Resultado já processado')
+  }
+
+  const challenge = result.challenge
+
+  if (!accepted) {
+    await admin
+      .from('match_results')
+      .update({ status: 'rejected', validated_by_profile_id: profile.id, validated_at: new Date().toISOString() })
+      .eq('id', resultId)
+
+    await admin
+      .from('challenges')
+      .update({ status: 'disputed' })
+      .eq('id', challenge.id)
+
+    revalidatePath(`/challenges/${challenge.id}`)
+    return
+  }
+
+  // Valida
+  await admin
+    .from('match_results')
+    .update({
+      status: 'validated',
+      validated_by_profile_id: profile.id,
+      validated_at: new Date().toISOString(),
+    })
+    .eq('id', resultId)
+
+  await admin
+    .from('challenges')
+    .update({ status: 'completed' })
+    .eq('id', challenge.id)
+
+  // Atualiza ranking se o desafiante venceu
+  if (result.winner_team_id === challenge.challenger_team_id) {
+    const { data: rankings } = await admin
+      .from('rankings')
+      .select('*')
+      .eq('category_id', challenge.category_id)
+
+    if (rankings) {
+      const updates = applyRankingUpdate(
+        rankings,
+        challenge.challenger_team_id,
+        challenge.challenged_team_id
+      )
+
+      for (const update of updates) {
+        await admin
+          .from('rankings')
+          .update({ position: update.newPosition })
+          .eq('team_id', update.teamId)
+          .eq('category_id', challenge.category_id)
+
+        await admin.from('ranking_events').insert({
+          tournament_id: challenge.tournament_id,
+          category_id: challenge.category_id,
+          challenge_id: challenge.id,
+          team_id: update.teamId,
+          old_position: update.oldPosition,
+          new_position: update.newPosition,
+          reason: 'Resultado de desafio validado',
+          created_by: profile.id,
+        })
+      }
+    }
+  }
+
+  // Notificações
+  const notif = buildResultValidatedNotification(challenge.id)
+  const teamsToNotify = [challenge.challenger_team_id, challenge.challenged_team_id]
+  for (const teamId of teamsToNotify) {
+    const { data: team } = await admin
+      .from('teams')
+      .select('captain_profile_id')
+      .eq('id', teamId)
+      .single()
+    if (team?.captain_profile_id) {
+      await admin.from('notifications').insert({
+        profile_id: team.captain_profile_id,
+        ...notif,
+      })
+    }
+  }
+
+  await admin.from('audit_logs').insert({
+    actor_profile_id: profile.id,
+    action: 'result.validated',
+    entity_type: 'match_results',
+    entity_id: resultId,
+    metadata: { challenge_id: challenge.id, winner_team_id: result.winner_team_id },
+  })
+
+  revalidatePath(`/challenges/${challenge.id}`)
+  revalidatePath('/ranking')
+}
+
+// ============================================================
+// Enviar mensagem no chat
+// ============================================================
+
+export async function sendMessage(challengeId: string, message: string) {
+  const { supabase, profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  const trimmed = message.trim()
+  if (!trimmed) throw new Error('Mensagem vazia')
+  if (trimmed.length > 1000) throw new Error('Mensagem demasiado longa')
+
+  await admin.from('challenge_messages').insert({
+    challenge_id: challengeId,
+    author_profile_id: profile.id,
+    message: trimmed,
+  })
+
+  revalidatePath(`/challenges/${challengeId}`)
+}
+
+// ============================================================
+// Propor horário
+// ============================================================
+
+export async function proposeSlot(challengeId: string, slotId: string) {
+  const { supabase, profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  const { data: myTeam } = await supabase
+    .from('teams')
+    .select('id')
+    .eq('captain_profile_id', profile.id)
+    .maybeSingle()
+
+  if (!myTeam && profile.role !== 'admin') {
+    throw new Error('Sem permissão')
+  }
+
+  // Expira propostas anteriores deste desafio
+  await admin
+    .from('challenge_proposals')
+    .update({ status: 'expired' })
+    .eq('challenge_id', challengeId)
+    .eq('status', 'pending')
+
+  // Cria nova proposta
+  await admin.from('challenge_proposals').insert({
+    challenge_id: challengeId,
+    proposed_by_team_id: myTeam?.id,
+    slot_id: slotId,
+    status: 'pending',
+  })
+
+  // Atualiza slot para 'proposed'
+  await admin
+    .from('schedule_slots')
+    .update({ status: 'proposed', challenge_id: challengeId })
+    .eq('id', slotId)
+
+  revalidatePath(`/challenges/${challengeId}`)
+}
+
+// ============================================================
+// Aceitar horário
+// ============================================================
+
+export async function acceptSlot(proposalId: string) {
+  const { supabase, profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  const { data: proposal } = await supabase
+    .from('challenge_proposals')
+    .select('*, slot:schedule_slots(*)')
+    .eq('id', proposalId)
+    .single()
+
+  if (!proposal) throw new Error('Proposta não encontrada')
+
+  await admin
+    .from('challenge_proposals')
+    .update({ status: 'accepted' })
+    .eq('id', proposalId)
+
+  await admin
+    .from('schedule_slots')
+    .update({ status: 'reserved' })
+    .eq('id', proposal.slot_id)
+
+  await admin
+    .from('challenges')
+    .update({ status: 'scheduled', selected_slot_id: proposal.slot_id })
+    .eq('id', proposal.challenge_id)
+
+  revalidatePath(`/challenges/${proposal.challenge_id}`)
+}
