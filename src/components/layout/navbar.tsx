@@ -105,11 +105,9 @@ export function Navbar({ profile, unreadCount }: NavbarProps) {
                 <p className="text-xs text-muted-foreground">{profile.email}</p>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/perfil">
-                  <User className="size-4 mr-2" />
-                  Alterar password
-                </Link>
+              <DropdownMenuItem onClick={() => router.push('/perfil')}>
+                <User className="size-4 mr-2" />
+                Alterar password
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
