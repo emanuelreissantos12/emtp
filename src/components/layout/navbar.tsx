@@ -21,6 +21,7 @@ import {
   LogOut,
   Settings,
   Bell,
+  User,
 } from 'lucide-react'
 
 interface NavbarProps {
@@ -103,6 +104,13 @@ export function Navbar({ profile, unreadCount }: NavbarProps) {
                 <p className="text-sm font-medium">{profile.name}</p>
                 <p className="text-xs text-muted-foreground">{profile.email}</p>
               </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/perfil">
+                  <User className="size-4 mr-2" />
+                  Alterar password
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 <LogOut className="size-4 mr-2" />
