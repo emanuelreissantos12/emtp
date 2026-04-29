@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useTheme } from 'next-themes'
 import { createClient } from '@/lib/supabase/client'
 import {
   DropdownMenu,
@@ -22,8 +21,7 @@ import {
   Settings,
   Bell,
   User,
-  Sun,
-  Moon,
+  BookOpen,
 } from 'lucide-react'
 
 interface NavbarProps {
@@ -43,7 +41,6 @@ const navItems = (role: Profile['role']) => [
 export function Navbar({ profile, unreadCount }: NavbarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { theme, setTheme } = useTheme()
   const supabase = createClient()
 
   async function handleLogout() {
@@ -83,17 +80,21 @@ export function Navbar({ profile, unreadCount }: NavbarProps) {
               {label}
             </Link>
           ))}
+          <Link
+            href="/regulamento"
+            className={cn(
+              'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+              pathname === '/regulamento'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            )}
+          >
+            <BookOpen className="size-4" />
+            Regulamento
+          </Link>
         </nav>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            title="Alternar tema"
-          >
-            <Sun className="size-4 hidden dark:block" />
-            <Moon className="size-4 dark:hidden" />
-          </button>
           <Link href="/notifications" className="relative p-2 rounded-lg hover:bg-muted transition-colors">
             <Bell className="size-4" />
             {unreadCount > 0 && (
@@ -118,7 +119,7 @@ export function Navbar({ profile, unreadCount }: NavbarProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push('/perfil')}>
                 <User className="size-4 mr-2" />
-                Alterar password
+                Perfil
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
@@ -177,14 +178,16 @@ export function Navbar({ profile, unreadCount }: NavbarProps) {
           <User className="size-5" />
           <span>Perfil</span>
         </Link>
-        <button
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs text-muted-foreground"
+        <Link
+          href="/regulamento"
+          className={cn(
+            'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs',
+            pathname === '/regulamento' ? 'text-primary' : 'text-muted-foreground'
+          )}
         >
-          <Sun className="size-5 hidden dark:block" />
-          <Moon className="size-5 dark:hidden" />
-          <span>Tema</span>
-        </button>
+          <BookOpen className="size-5" />
+          <span>Regras</span>
+        </Link>
       </nav>
     </>
   )

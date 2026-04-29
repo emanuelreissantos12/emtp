@@ -154,7 +154,7 @@ export function RegisterMatchForm({ tournamentId, teams }: Props) {
                       onChange={(e) => updateSet(i, 'challenged', e.target.value)}
                       className="border rounded-lg px-2 py-1.5 text-sm w-16 text-center bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
                     />
-                    {i === 2 && <span className="text-xs text-muted-foreground">(super tie-break)</span>}
+                    {i === 2 && <span className="text-xs text-muted-foreground">(3.º set)</span>}
                   </div>
                 ))}
               </div>

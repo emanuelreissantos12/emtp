@@ -185,7 +185,7 @@ export default async function RankingPage() {
                     >
                       <CardContent className="pt-3 pb-3 flex items-center gap-3">
                         {/* Posição + seta */}
-                        <div className="flex flex-col items-center w-8 shrink-0">
+                        <div className="flex flex-col items-center w-10 shrink-0">
                           <span
                             className={cn(
                               'text-lg font-black leading-none',
@@ -195,10 +195,16 @@ export default async function RankingPage() {
                             {entry.position}
                           </span>
                           {movedUp && (
-                            <TrendingUp className="size-3 text-green-500 mt-0.5" />
+                            <div className="flex items-center gap-0.5 mt-0.5">
+                              <TrendingUp className="size-4 text-green-500" />
+                              <span className="text-[10px] font-semibold text-green-500">+{recentMove.old - recentMove.new}</span>
+                            </div>
                           )}
                           {movedDown && (
-                            <TrendingDown className="size-3 text-red-500 mt-0.5" />
+                            <div className="flex items-center gap-0.5 mt-0.5">
+                              <TrendingDown className="size-4 text-red-500" />
+                              <span className="text-[10px] font-semibold text-red-500">-{recentMove.new - recentMove.old}</span>
+                            </div>
                           )}
                         </div>
 

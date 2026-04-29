@@ -129,7 +129,7 @@ export function ResultForm({
 
         {needs3rdSet && sets.length < 3 && (
           <p className="text-xs text-muted-foreground">
-            Sets empatados 1-1 — preenche o super tie-break.
+            Sets empatados 1-1 — preenche o 3.º set.
           </p>
         )}
 

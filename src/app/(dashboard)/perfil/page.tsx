@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChangePasswordForm } from '@/components/profile/change-password-form'
 import { LogoutButton } from '@/components/profile/logout-button'
+import { ThemeToggle } from '@/components/profile/theme-toggle'
 import { User } from 'lucide-react'
 
 export default async function PerfilPage() {
@@ -43,6 +44,15 @@ export default async function PerfilPage() {
         </CardHeader>
         <CardContent>
           <ChangePasswordForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Aparência</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ThemeToggle />
         </CardContent>
       </Card>
 
