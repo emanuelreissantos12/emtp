@@ -122,21 +122,25 @@ export default async function ChallengePage({
         </div>
       )}
 
-      {/* Horário reservado */}
-      {challenge.selected_slot && (
-        <Card className="border-green-400">
-          <CardContent className="pt-3 pb-3 flex items-center gap-3">
-            <CheckCircle className="size-4 text-green-500 shrink-0" />
-            <div>
-              <p className="font-medium text-sm">Horário reservado</p>
-              <p className="text-xs text-muted-foreground">
-                {challenge.selected_slot.court?.name} ·{' '}
-                {format(new Date(challenge.selected_slot.starts_at), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Horário confirmado */}
+      {challenge.status === 'scheduled' && (() => {
+        const confirmed = (challenge.proposals ?? []).find((p: any) => p.status === 'accepted')
+        if (!confirmed) return null
+        return (
+          <Card className="border-green-400">
+            <CardContent className="pt-3 pb-3 flex items-center gap-3">
+              <CheckCircle className="size-4 text-green-500 shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Horário confirmado</p>
+                <p className="text-xs text-muted-foreground">
+                  {confirmed.proposed_court && `${confirmed.proposed_court} · `}
+                  {confirmed.proposed_datetime && format(new Date(confirmed.proposed_datetime), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* Resultado */}
       {result && (
@@ -194,7 +198,6 @@ export default async function ChallengePage({
       {(challenge.status === 'negotiating' || challenge.status === 'scheduled') && (
         <SlotProposal
           challengeId={challenge.id}
-          tournamentId={challenge.tournament_id}
           pendingProposal={pendingProposal}
           canPropose={isChallenger || isChallenged || isAdmin}
           myTeamId={myTeam?.id ?? null}

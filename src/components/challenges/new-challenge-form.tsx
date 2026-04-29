@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import { createChallenge } from '@/actions/challenges'
+import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Calendar, MessageSquare } from 'lucide-react'
@@ -15,50 +14,50 @@ interface Target {
   lockReason: string | null
 }
 
-interface Slot {
+interface Court {
   id: string
-  startsAt: string
-  endsAt: string
-  courtName: string
+  name: string
 }
 
 interface Props {
   targets: Target[]
-  slots: Slot[]
+  courts: Court[]
   prefillTargetId?: string
 }
 
-export function NewChallengeForm({ targets, slots, prefillTargetId }: Props) {
-  const router = useRouter()
+export function NewChallengeForm({ targets, courts, prefillTargetId }: Props) {
   const [isPending, startTransition] = useTransition()
   const [selectedId, setSelectedId] = useState(prefillTargetId ?? '')
-  const [selectedSlot, setSelectedSlot] = useState('')
+  const [date, setDate] = useState('')
+  const [time, setTime] = useState('10:00')
+  const [court, setCourt] = useState(courts[0]?.name ?? '')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
   const selected = targets.find((t) => t.id === selectedId)
   const canSubmit = !!selected && !selected.lockReason
 
-  // Agrupar slots por data
-  const slotsByDate: Record<string, Slot[]> = {}
-  for (const s of slots) {
-    const day = format(new Date(s.startsAt), 'yyyy-MM-dd')
-    if (!slotsByDate[day]) slotsByDate[day] = []
-    slotsByDate[day].push(s)
-  }
+  // Mínimo: amanhã
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const minDate = tomorrow.toISOString().split('T')[0]
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
     setError('')
+
     const formData = new FormData()
     formData.set('target_team_id', selectedId)
-    if (selectedSlot) formData.set('slot_id', selectedSlot)
+    if (date) {
+      formData.set('proposed_datetime', `${date}T${time}:00`)
+      formData.set('proposed_court', court)
+    }
     if (message.trim()) formData.set('message', message.trim())
+
     startTransition(async () => {
       try {
         await createChallenge(formData)
-        router.push('/challenges')
       } catch (e: any) {
         setError(e.message)
       }
@@ -115,50 +114,64 @@ export function NewChallengeForm({ targets, slots, prefillTargetId }: Props) {
         </div>
       </div>
 
-      {/* Selecionar horário */}
+      {/* Proposta de horário */}
       <div className="space-y-2">
         <p className="text-sm font-medium flex items-center gap-1.5">
           <Calendar className="size-4" />
-          Horário proposto
+          Propor horário
           <span className="text-muted-foreground font-normal">(opcional)</span>
         </p>
-        {slots.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">
-            Não há horários livres disponíveis. Podes propor um horário depois de criar o desafio.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {Object.entries(slotsByDate).map(([day, daySlots]) => (
-              <div key={day}>
-                <p className="text-xs text-muted-foreground mb-1.5 font-medium">
-                  {format(new Date(day + 'T12:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })}
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {daySlots.map((s) => {
-                    const isSelected = selectedSlot === s.id
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => setSelectedSlot(isSelected ? '' : s.id)}
-                        className={[
-                          'text-left p-2.5 rounded-lg border text-sm transition-colors',
-                          isSelected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50',
-                        ].join(' ')}
-                      >
-                        <p className="font-medium">
-                          {format(new Date(s.startsAt), 'HH:mm')}
-                          {' – '}
-                          {format(new Date(s.endsAt), 'HH:mm')}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{s.courtName}</p>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+        <p className="text-xs text-muted-foreground">
+          Sugere uma data e hora. O admin confirma ou propõe outra opção.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Data</label>
+            <input
+              type="date"
+              value={date}
+              min={minDate}
+              onChange={(e) => setDate(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm w-full bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
+            />
           </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Hora</label>
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              step={1800}
+              className="border rounded-lg px-3 py-2 text-sm w-full bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
+            />
+          </div>
+        </div>
+        {courts.length > 0 && (
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Campo</label>
+            <div className="flex gap-2">
+              {courts.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCourt(c.name)}
+                  className={[
+                    'flex-1 py-2 px-3 rounded-lg border text-sm transition-colors',
+                    court === c.name
+                      ? 'border-primary bg-primary/10 text-primary font-medium'
+                      : 'border-border hover:bg-muted/50',
+                  ].join(' ')}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {date && (
+          <p className="text-xs text-muted-foreground">
+            Proposta: {format(new Date(`${date}T${time}:00`), "EEEE, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })} — {court}
+          </p>
         )}
       </div>
 
@@ -182,9 +195,7 @@ export function NewChallengeForm({ targets, slots, prefillTargetId }: Props) {
       {error && <p className="text-red-500 text-sm">{error}</p>}
 
       <Button type="submit" disabled={!canSubmit || isPending} className="w-full">
-        {isPending
-          ? 'A criar desafio...'
-          : `Desafiar ${selected?.name ?? ''}`}
+        {isPending ? 'A criar desafio...' : `Desafiar ${selected?.name ?? ''}`}
       </Button>
     </form>
   )

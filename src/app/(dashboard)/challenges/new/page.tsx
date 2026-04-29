@@ -104,24 +104,12 @@ export default async function NewChallengePage({
     return { id: t.id, name: t.name, position: r?.position ?? 0, lockReason }
   }).sort((a, b) => a.position - b.position)
 
-  // Horários livres nas próximas 4 semanas
-  const in4weeks = new Date()
-  in4weeks.setDate(in4weeks.getDate() + 28)
+  const { data: courtsData } = await supabase
+    .from('courts')
+    .select('id, name')
+    .order('name')
 
-  const { data: freeSlots } = await supabase
-    .from('schedule_slots')
-    .select('*, court:courts(name)')
-    .eq('status', 'free')
-    .gte('starts_at', new Date().toISOString())
-    .lte('starts_at', in4weeks.toISOString())
-    .order('starts_at')
-
-  const slots = (freeSlots ?? []).map((s) => ({
-    id: s.id,
-    startsAt: s.starts_at,
-    endsAt: s.ends_at,
-    courtName: (Array.isArray(s.court) ? s.court[0] : s.court)?.name ?? 'Campo',
-  }))
+  const courts = (courtsData ?? []).map((c) => ({ id: c.id, name: c.name }))
 
   return (
     <div className="space-y-4">
@@ -137,7 +125,7 @@ export default async function NewChallengePage({
         <CardContent>
           <NewChallengeForm
             targets={targets}
-            slots={slots}
+            courts={courts}
             prefillTargetId={prefillTargetId}
           />
         </CardContent>

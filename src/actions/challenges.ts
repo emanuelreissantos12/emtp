@@ -44,7 +44,8 @@ export async function createChallenge(formData: FormData) {
 
   const targetTeamId = formData.get('target_team_id') as string
   if (!targetTeamId) throw new Error('Dupla alvo em falta')
-  const slotId = formData.get('slot_id') as string | null
+  const proposedDatetime = formData.get('proposed_datetime') as string | null
+  const proposedCourt = formData.get('proposed_court') as string | null
   const message = formData.get('message') as string | null
 
   // Encontra a equipa do capitão
@@ -151,19 +152,14 @@ export async function createChallenge(formData: FormData) {
     })
   }
 
-  // Proposta de horário imediata (se fornecido)
-  if (slotId) {
+  // Proposta de horário imediata (se fornecida)
+  if (proposedDatetime) {
     await admin.from('challenge_proposals').insert({
       challenge_id: challenge.id,
       proposed_by_team_id: myTeam.id,
-      slot_id: slotId,
+      proposed_datetime: proposedDatetime,
+      proposed_court: proposedCourt ?? null,
     })
-    await admin
-      .from('schedule_slots')
-      .update({ status: 'proposed', challenge_id: challenge.id })
-      .eq('id', slotId)
-
-    // Atualiza desafio para scheduled se proposta imediata
     await admin
       .from('challenges')
       .update({ status: 'negotiating' })
@@ -547,10 +543,14 @@ export async function sendMessage(challengeId: string, message: string) {
 }
 
 // ============================================================
-// Propor horário
+// Propor horário (data/hora/campo livre)
 // ============================================================
 
-export async function proposeSlot(challengeId: string, slotId: string) {
+export async function proposeTime(
+  challengeId: string,
+  proposedDatetime: string,
+  proposedCourt: string | null
+) {
   const { supabase, profile } = await getSessionProfile()
   const admin = createAdminClient()
 
@@ -560,45 +560,42 @@ export async function proposeSlot(challengeId: string, slotId: string) {
     .eq('captain_profile_id', profile.id)
     .maybeSingle()
 
-  if (!myTeam && profile.role !== 'admin') {
-    throw new Error('Sem permissão')
-  }
+  if (!myTeam && profile.role !== 'admin') throw new Error('Sem permissão')
 
-  // Expira propostas anteriores deste desafio
+  // Expira propostas pendentes anteriores
   await admin
     .from('challenge_proposals')
     .update({ status: 'expired' })
     .eq('challenge_id', challengeId)
     .eq('status', 'pending')
 
-  // Cria nova proposta
   await admin.from('challenge_proposals').insert({
     challenge_id: challengeId,
-    proposed_by_team_id: myTeam?.id,
-    slot_id: slotId,
+    proposed_by_team_id: myTeam?.id ?? null,
+    proposed_datetime: proposedDatetime,
+    proposed_court: proposedCourt ?? null,
     status: 'pending',
   })
 
-  // Atualiza slot para 'proposed'
   await admin
-    .from('schedule_slots')
-    .update({ status: 'proposed', challenge_id: challengeId })
-    .eq('id', slotId)
+    .from('challenges')
+    .update({ status: 'negotiating' })
+    .eq('id', challengeId)
 
   revalidatePath(`/challenges/${challengeId}`)
 }
 
 // ============================================================
-// Aceitar horário
+// Aceitar proposta de horário (pela outra dupla)
 // ============================================================
 
-export async function acceptSlot(proposalId: string) {
+export async function acceptProposal(proposalId: string) {
   const { supabase, profile } = await getSessionProfile()
   const admin = createAdminClient()
 
   const { data: proposal } = await supabase
     .from('challenge_proposals')
-    .select('*, slot:schedule_slots(*)')
+    .select('*')
     .eq('id', proposalId)
     .single()
 
@@ -610,14 +607,47 @@ export async function acceptSlot(proposalId: string) {
     .eq('id', proposalId)
 
   await admin
-    .from('schedule_slots')
-    .update({ status: 'reserved' })
-    .eq('id', proposal.slot_id)
+    .from('challenges')
+    .update({ status: 'scheduled' })
+    .eq('id', proposal.challenge_id)
+
+  revalidatePath(`/challenges/${proposal.challenge_id}`)
+}
+
+// ============================================================
+// Confirmar horário (admin)
+// ============================================================
+
+export async function confirmProposal(proposalId: string) {
+  const { profile } = await getSessionProfile()
+  if (profile.role !== 'admin') throw new Error('Sem permissão')
+  const admin = createAdminClient()
+
+  const { data: proposal } = await admin
+    .from('challenge_proposals')
+    .select('*')
+    .eq('id', proposalId)
+    .single()
+
+  if (!proposal) throw new Error('Proposta não encontrada')
+
+  await admin
+    .from('challenge_proposals')
+    .update({ status: 'accepted' })
+    .eq('id', proposalId)
 
   await admin
     .from('challenges')
-    .update({ status: 'scheduled', selected_slot_id: proposal.slot_id })
+    .update({ status: 'scheduled' })
     .eq('id', proposal.challenge_id)
+
+  await admin.from('audit_logs').insert({
+    actor_profile_id: profile.id,
+    action: 'proposal.confirmed',
+    entity_type: 'challenge_proposals',
+    entity_id: proposalId,
+    metadata: { challenge_id: proposal.challenge_id },
+  })
 
   revalidatePath(`/challenges/${proposal.challenge_id}`)
 }

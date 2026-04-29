@@ -3,18 +3,16 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { proposeSlot, acceptSlot } from '@/actions/challenges'
+import { proposeTime, acceptProposal, confirmProposal } from '@/actions/challenges'
 import { toast } from 'sonner'
-import { Calendar, CheckCircle, Clock } from 'lucide-react'
+import { Calendar, CheckCircle, Clock, ShieldCheck } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { createClient } from '@/lib/supabase/client'
-import { useEffect } from 'react'
-import type { ScheduleSlot } from '@/types/database'
+
+const COURTS = ['Campo 1', 'Campo 2']
 
 interface Props {
   challengeId: string
-  tournamentId: string
   pendingProposal: any
   canPropose: boolean
   myTeamId: string | null
@@ -23,34 +21,32 @@ interface Props {
 
 export function SlotProposal({
   challengeId,
-  tournamentId,
   pendingProposal,
   canPropose,
   myTeamId,
   isAdmin,
 }: Props) {
-  const [freeSlots, setFreeSlots] = useState<(ScheduleSlot & { court: { name: string } })[]>([])
-  const [loading, setLoading] = useState(false)
   const [proposing, setProposing] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [date, setDate] = useState('')
+  const [time, setTime] = useState('10:00')
+  const [court, setCourt] = useState(COURTS[0])
 
-  useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from('schedule_slots')
-      .select('*, court:courts(name)')
-      .eq('tournament_id', tournamentId)
-      .eq('status', 'free')
-      .gte('starts_at', new Date().toISOString())
-      .order('starts_at')
-      .limit(20)
-      .then(({ data }) => setFreeSlots((data as any) ?? []))
-  }, [tournamentId])
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const minDate = tomorrow.toISOString().split('T')[0]
 
-  async function handlePropose(slotId: string) {
+  const iAmProposer = pendingProposal && myTeamId && pendingProposal.proposed_by_team_id === myTeamId
+  const canAccept = pendingProposal && myTeamId && !iAmProposer && !isAdmin
+
+  async function handlePropose() {
+    if (!date) { toast.error('Escolhe uma data.'); return }
     setLoading(true)
     try {
-      await proposeSlot(challengeId, slotId)
+      await proposeTime(challengeId, `${date}T${time}:00`, court)
       toast.success('Horário proposto!')
+      setProposing(false)
+      setDate('')
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao propor horário')
     } finally {
@@ -58,20 +54,34 @@ export function SlotProposal({
     }
   }
 
-  async function handleAccept(proposalId: string) {
+  async function handleAccept() {
     setLoading(true)
     try {
-      await acceptSlot(proposalId)
+      await acceptProposal(pendingProposal.id)
       toast.success('Horário aceite! Jogo agendado.')
     } catch (e: any) {
-      toast.error(e.message ?? 'Erro ao aceitar horário')
+      toast.error(e.message ?? 'Erro ao aceitar')
     } finally {
       setLoading(false)
     }
   }
 
-  const iAmProposer = pendingProposal && myTeamId && pendingProposal.proposed_by_team_id === myTeamId
-  const canAcceptPendingProposal = pendingProposal && myTeamId && !iAmProposer
+  async function handleConfirm() {
+    setLoading(true)
+    try {
+      await confirmProposal(pendingProposal.id)
+      toast.success('Horário confirmado!')
+    } catch (e: any) {
+      toast.error(e.message ?? 'Erro ao confirmar')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function formatProposal(p: any) {
+    if (!p.proposed_datetime) return '—'
+    return format(new Date(p.proposed_datetime), "EEEE, dd 'de' MMM 'às' HH:mm", { locale: ptBR })
+  }
 
   return (
     <Card>
@@ -82,83 +92,97 @@ export function SlotProposal({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+
         {/* Proposta pendente */}
         {pendingProposal && (
           <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-300">
             <p className="text-sm font-medium flex items-center gap-2">
               <Clock className="size-4 text-yellow-600" />
-              {iAmProposer ? 'A aguardar resposta' : 'Proposta recebida'}
+              {iAmProposer ? 'A aguardar resposta' : isAdmin ? 'Proposta para confirmar' : 'Proposta recebida'}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              {pendingProposal.slot?.court?.name} ·{' '}
-              {format(
-                new Date(pendingProposal.slot?.starts_at),
-                "EEEE, dd MMM 'às' HH:mm",
-                { locale: ptBR }
-              )}
+              {formatProposal(pendingProposal)}
+              {pendingProposal.proposed_court && ` — ${pendingProposal.proposed_court}`}
             </p>
-            <div className="flex gap-2 mt-2">
-              {canAcceptPendingProposal && (
-                <Button
-                  size="sm"
-                  onClick={() => handleAccept(pendingProposal.id)}
-                  disabled={loading}
-                >
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {canAccept && (
+                <Button size="sm" onClick={handleAccept} disabled={loading}>
                   <CheckCircle className="size-3.5 mr-1" />
                   Aceitar
                 </Button>
               )}
+              {isAdmin && (
+                <Button size="sm" onClick={handleConfirm} disabled={loading}>
+                  <ShieldCheck className="size-3.5 mr-1" />
+                  Confirmar
+                </Button>
+              )}
               {canPropose && !proposing && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setProposing(true)}
-                  disabled={loading}
-                >
-                  {iAmProposer ? 'Alterar proposta' : 'Sugerir outro'}
+                <Button size="sm" variant="outline" onClick={() => setProposing(true)} disabled={loading}>
+                  {iAmProposer ? 'Alterar' : 'Sugerir outro'}
                 </Button>
               )}
             </div>
           </div>
         )}
 
-        {/* Lista de horários livres */}
+        {/* Formulário de proposta */}
         {(!pendingProposal || proposing) && canPropose && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                {proposing ? 'Escolhe outro horário:' : 'Propõe um horário:'}
-              </p>
-              {proposing && (
-                <button
-                  onClick={() => setProposing(false)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Cancelar
-                </button>
-              )}
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground font-medium">
+              {proposing ? 'Propor outro horário:' : 'Propor horário:'}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Data</label>
+                <input
+                  type="date"
+                  value={date}
+                  min={minDate}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="border rounded-lg px-2 py-1.5 text-sm w-full bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Hora</label>
+                <input
+                  type="time"
+                  value={time}
+                  step={1800}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="border rounded-lg px-2 py-1.5 text-sm w-full bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
+                />
+              </div>
             </div>
-            {freeSlots.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Sem horários livres disponíveis. Contacta a organização.
-              </p>
-            )}
-            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-              {freeSlots.map((slot) => (
-                <button
-                  key={slot.id}
-                  onClick={() => handlePropose(slot.id)}
-                  disabled={loading}
-                  className="w-full text-left p-2.5 rounded-lg border hover:bg-muted transition-colors text-sm"
-                >
-                  <span className="font-medium">{slot.court?.name}</span>
-                  <span className="text-muted-foreground ml-2">
-                    {format(new Date(slot.starts_at), "EEE dd/MM 'às' HH:mm", {
-                      locale: ptBR,
-                    })}
-                  </span>
-                </button>
-              ))}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Campo</label>
+              <div className="flex gap-2">
+                {COURTS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCourt(c)}
+                    className={[
+                      'flex-1 py-1.5 px-3 rounded-lg border text-sm transition-colors',
+                      court === c
+                        ? 'border-primary bg-primary/10 text-primary font-medium'
+                        : 'border-border hover:bg-muted/50',
+                    ].join(' ')}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handlePropose} disabled={loading || !date} className="flex-1">
+                {loading ? 'A enviar...' : 'Propor'}
+              </Button>
+              {proposing && (
+                <Button size="sm" variant="outline" onClick={() => { setProposing(false); setDate('') }} disabled={loading}>
+                  Cancelar
+                </Button>
+              )}
             </div>
           </div>
         )}
