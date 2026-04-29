@@ -28,7 +28,7 @@ export default function LoginPage() {
     setLoading(false)
 
     if (error) {
-      toast.error('Erro ao enviar link. Verifica o email e tenta novamente.')
+      toast.error(error.message || 'Erro ao enviar link.')
       return
     }
 
