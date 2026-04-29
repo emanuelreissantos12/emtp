@@ -216,7 +216,7 @@ export async function submitResult(
     .single()
 
   if (!challenge) throw new Error('Desafio não encontrado')
-  if (challenge.status !== 'scheduled' && challenge.status !== 'result_pending') {
+  if (!['scheduled', 'negotiating', 'result_pending'].includes(challenge.status)) {
     throw new Error('Este desafio não está em estado de resultado')
   }
 
@@ -393,6 +393,135 @@ export async function validateResult(resultId: string, accepted: boolean) {
   })
 
   revalidatePath(`/challenges/${challenge.id}`)
+  revalidatePath('/ranking')
+}
+
+// ============================================================
+// Corrigir resultado (admin)
+// ============================================================
+
+export async function overrideResult(
+  challengeId: string,
+  newWinnerTeamId: string,
+  sets: SetScore[]
+) {
+  const { supabase, profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  if (profile.role !== 'admin') throw new Error('Sem permissão')
+
+  const parsed = parseMatchResult(sets)
+  if (!parsed.valid) throw new Error(parsed.error ?? 'Resultado inválido')
+
+  const { data: challenge } = await admin
+    .from('challenges')
+    .select('*')
+    .eq('id', challengeId)
+    .single()
+
+  if (!challenge) throw new Error('Desafio não encontrado')
+
+  // Reverte ranking events anteriores deste desafio (se existirem)
+  const { data: prevEvents } = await admin
+    .from('ranking_events')
+    .select('*')
+    .eq('challenge_id', challengeId)
+
+  if (prevEvents && prevEvents.length > 0) {
+    for (const ev of prevEvents) {
+      await admin
+        .from('rankings')
+        .update({ position: ev.old_position })
+        .eq('team_id', ev.team_id)
+        .eq('category_id', challenge.category_id)
+    }
+    await admin.from('ranking_events').delete().eq('challenge_id', challengeId)
+  }
+
+  // Remove resultado anterior e sets
+  const { data: prevResult } = await admin
+    .from('match_results')
+    .select('id')
+    .eq('challenge_id', challengeId)
+    .maybeSingle()
+
+  if (prevResult) {
+    await admin.from('match_sets').delete().eq('match_result_id', prevResult.id)
+    await admin.from('match_results').delete().eq('id', prevResult.id)
+  }
+
+  // Insere novo resultado já validado
+  const { data: newResult, error: resErr } = await admin
+    .from('match_results')
+    .insert({
+      challenge_id: challengeId,
+      submitted_by_team_id: challenge.challenger_team_id,
+      winner_team_id: newWinnerTeamId,
+      status: 'validated',
+      validated_by_profile_id: profile.id,
+      validated_at: new Date().toISOString(),
+    })
+    .select()
+    .single()
+
+  if (resErr) throw new Error('Erro ao guardar resultado: ' + resErr.message)
+
+  const setsData = sets.map((s, i) => ({
+    match_result_id: newResult.id,
+    set_number: i + 1,
+    challenger_games: s.challenger,
+    challenged_games: s.challenged,
+  }))
+  await admin.from('match_sets').insert(setsData)
+
+  await admin
+    .from('challenges')
+    .update({ status: 'completed' })
+    .eq('id', challengeId)
+
+  // Aplica novo ranking se desafiante venceu
+  if (newWinnerTeamId === challenge.challenger_team_id) {
+    const { data: rankings } = await admin
+      .from('rankings')
+      .select('*')
+      .eq('category_id', challenge.category_id)
+
+    if (rankings) {
+      const updates = applyRankingUpdate(
+        rankings,
+        challenge.challenger_team_id,
+        challenge.challenged_team_id
+      )
+      for (const update of updates) {
+        await admin
+          .from('rankings')
+          .update({ position: update.newPosition })
+          .eq('team_id', update.teamId)
+          .eq('category_id', challenge.category_id)
+
+        await admin.from('ranking_events').insert({
+          tournament_id: challenge.tournament_id,
+          category_id: challenge.category_id,
+          challenge_id: challengeId,
+          team_id: update.teamId,
+          old_position: update.oldPosition,
+          new_position: update.newPosition,
+          reason: 'Correção de resultado por admin',
+          created_by: profile.id,
+        })
+      }
+    }
+  }
+
+  await admin.from('audit_logs').insert({
+    actor_profile_id: profile.id,
+    action: 'result.overridden',
+    entity_type: 'challenges',
+    entity_id: challengeId,
+    metadata: { new_winner_team_id: newWinnerTeamId },
+  })
+
+  revalidatePath(`/challenges/${challengeId}`)
   revalidatePath('/ranking')
 }
 

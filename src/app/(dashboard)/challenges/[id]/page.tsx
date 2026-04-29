@@ -8,6 +8,7 @@ import { ChallengeStatusBadge } from '@/components/challenges/challenge-status-b
 import { ResultForm } from '@/components/challenges/result-form'
 import { ChatBox } from '@/components/challenges/chat-box'
 import { SlotProposal } from '@/components/challenges/slot-proposal'
+import { AdminResultOverride } from '@/components/challenges/admin-result-override'
 import { validateResult } from '@/actions/challenges'
 import { daysUntilDeadline, isChallengeExpired } from '@/lib/domain/challenge'
 import { formatScore } from '@/lib/domain/result'
@@ -73,7 +74,7 @@ export default async function ChallengePage({
   )
   const canSubmitResult =
     (isChallenger || isChallenged) &&
-    challenge.status === 'scheduled' &&
+    ['scheduled', 'negotiating'].includes(challenge.status) &&
     !result
   const canValidateResult =
     result?.status === 'pending_validation' &&
@@ -202,6 +203,17 @@ export default async function ChallengePage({
       {/* Formulário de resultado */}
       {canSubmitResult && (
         <ResultForm
+          challengeId={challenge.id}
+          challengerTeamId={challenge.challenger_team_id}
+          challengedTeamId={challenge.challenged_team_id}
+          challengerName={challenge.challenger_team?.name ?? ''}
+          challengedName={challenge.challenged_team?.name ?? ''}
+        />
+      )}
+
+      {/* Admin: corrigir resultado */}
+      {isAdmin && (
+        <AdminResultOverride
           challengeId={challenge.id}
           challengerTeamId={challenge.challenger_team_id}
           challengedTeamId={challenge.challenged_team_id}
