@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,7 @@ import type { RankingRow } from '@/types/database'
 
 export default async function RankingPage() {
   const supabase = await createClient()
+  const admin = createAdminClient()
 
   const {
     data: { user },
@@ -58,7 +59,7 @@ export default async function RankingPage() {
 
   // Eventos de ranking recentes (últimos 7 dias) para mostrar setas
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: recentEvents } = await supabase
+  const { data: recentEvents } = await admin
     .from('ranking_events')
     .select('team_id, old_position, new_position')
     .eq('tournament_id', tournament.id)
