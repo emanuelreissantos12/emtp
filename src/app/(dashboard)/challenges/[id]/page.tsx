@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,7 +36,9 @@ export default async function ChallengePage({
     .single()
   if (!profile) redirect('/login')
 
-  const { data: challenge } = await supabase
+  // Usa admin client para evitar bloqueio por RLS; acesso verificado manualmente abaixo
+  const admin = createAdminClient()
+  const { data: challenge } = await admin
     .from('challenges')
     .select(`
       *,
