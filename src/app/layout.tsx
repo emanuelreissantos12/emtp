@@ -14,8 +14,14 @@ export const metadata: Metadata = {
   description: 'Escola Municipal de Ténis e Padel de Oliveira do Bairro',
   manifest: '/manifest.json',
   icons: {
-    icon: '/icon.svg',
-    apple: '/icon.svg',
+    icon: [
+      { url: '/icon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/icon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icon-180.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
   appleWebApp: {
     capable: true,
