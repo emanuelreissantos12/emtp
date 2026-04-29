@@ -167,6 +167,16 @@ export function Navbar({ profile, unreadCount }: NavbarProps) {
           </div>
           <span>Alertas</span>
         </Link>
+        <Link
+          href="/perfil"
+          className={cn(
+            'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs',
+            pathname === '/perfil' ? 'text-primary' : 'text-muted-foreground'
+          )}
+        >
+          <User className="size-5" />
+          <span>Perfil</span>
+        </Link>
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs text-muted-foreground"
