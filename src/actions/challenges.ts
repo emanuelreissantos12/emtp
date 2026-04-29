@@ -44,6 +44,8 @@ export async function createChallenge(formData: FormData) {
 
   const targetTeamId = formData.get('target_team_id') as string
   if (!targetTeamId) throw new Error('Dupla alvo em falta')
+  const slotId = formData.get('slot_id') as string | null
+  const message = formData.get('message') as string | null
 
   // Encontra a equipa do capitão
   const { data: myTeam } = await supabase
@@ -146,6 +148,34 @@ export async function createChallenge(formData: FormData) {
     await admin.from('notifications').insert({
       profile_id: targetProfile.id,
       ...notif,
+    })
+  }
+
+  // Proposta de horário imediata (se fornecido)
+  if (slotId) {
+    await admin.from('challenge_proposals').insert({
+      challenge_id: challenge.id,
+      proposed_by_team_id: myTeam.id,
+      slot_id: slotId,
+    })
+    await admin
+      .from('schedule_slots')
+      .update({ status: 'proposed', challenge_id: challenge.id })
+      .eq('id', slotId)
+
+    // Atualiza desafio para scheduled se proposta imediata
+    await admin
+      .from('challenges')
+      .update({ status: 'negotiating' })
+      .eq('id', challenge.id)
+  }
+
+  // Mensagem inicial (se fornecida)
+  if (message?.trim()) {
+    await admin.from('challenge_messages').insert({
+      challenge_id: challenge.id,
+      author_profile_id: profile.id,
+      message: message.trim(),
     })
   }
 

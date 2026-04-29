@@ -57,7 +57,6 @@ export default async function NewChallengePage({
     .or(`challenger_team_id.eq.${myTeam.id},challenged_team_id.eq.${myTeam.id}`)
     .not('status', 'in', '("completed","cancelled","expired")')
 
-  // Determina o último adversário (após derrota) para a regra de repetição
   const { data: lastCompleted } = await supabase
     .from('challenges')
     .select('*, match_results(winner_team_id)')
@@ -78,7 +77,6 @@ export default async function NewChallengePage({
       const opponentId = c.challenger_team_id === myTeam.id
         ? c.challenged_team_id
         : c.challenger_team_id
-
       if (!foundLoss && !wonThisGame) {
         lastOpponentId = opponentId
         foundLoss = true
@@ -103,13 +101,27 @@ export default async function NewChallengePage({
       t.id,
       hasPlayedOtherSinceLastLoss
     )
-    return {
-      id: t.id,
-      name: t.name,
-      position: r?.position ?? 0,
-      lockReason,
-    }
+    return { id: t.id, name: t.name, position: r?.position ?? 0, lockReason }
   }).sort((a, b) => a.position - b.position)
+
+  // Horários livres nas próximas 4 semanas
+  const in4weeks = new Date()
+  in4weeks.setDate(in4weeks.getDate() + 28)
+
+  const { data: freeSlots } = await supabase
+    .from('schedule_slots')
+    .select('*, court:courts(name)')
+    .eq('status', 'free')
+    .gte('starts_at', new Date().toISOString())
+    .lte('starts_at', in4weeks.toISOString())
+    .order('starts_at')
+
+  const slots = (freeSlots ?? []).map((s) => ({
+    id: s.id,
+    startsAt: s.starts_at,
+    endsAt: s.ends_at,
+    courtName: (Array.isArray(s.court) ? s.court[0] : s.court)?.name ?? 'Campo',
+  }))
 
   return (
     <div className="space-y-4">
@@ -125,6 +137,7 @@ export default async function NewChallengePage({
         <CardContent>
           <NewChallengeForm
             targets={targets}
+            slots={slots}
             prefillTargetId={prefillTargetId}
           />
         </CardContent>
