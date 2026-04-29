@@ -32,7 +32,7 @@ export default function LoginPage() {
     <div
       className="min-h-screen flex items-center justify-center p-4 relative"
       style={{
-        backgroundImage: "url('/padel-bg.jpg')",
+        backgroundImage: "url('/padel-bg.png')",
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}

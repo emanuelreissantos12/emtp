@@ -13,6 +13,10 @@ export const metadata: Metadata = {
   title: 'EMTP — Torneio Escada 2026',
   description: 'Escola Municipal de Ténis e Padel de Oliveira do Bairro',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
