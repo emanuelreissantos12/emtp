@@ -57,13 +57,13 @@ export default async function RankingPage() {
     .eq('tournament_id', tournament.id)
     .order('position')
 
-  // Eventos de ranking recentes (últimos 7 dias) para mostrar setas
-  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  // Eventos de ranking recentes (últimas 48h) para mostrar setas
+  const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
   const { data: recentEvents } = await admin
     .from('ranking_events')
     .select('team_id, old_position, new_position')
     .eq('tournament_id', tournament.id)
-    .gte('created_at', since7d)
+    .gte('created_at', since48h)
     .order('created_at', { ascending: false })
 
   // Último evento por equipa
