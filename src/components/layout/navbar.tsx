@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import { createClient } from '@/lib/supabase/client'
 import {
   DropdownMenu,
@@ -17,11 +18,12 @@ import {
   LayoutDashboard,
   Trophy,
   Swords,
-  Users,
   LogOut,
   Settings,
   Bell,
   User,
+  Sun,
+  Moon,
 } from 'lucide-react'
 
 interface NavbarProps {
@@ -41,6 +43,7 @@ const navItems = (role: Profile['role']) => [
 export function Navbar({ profile, unreadCount }: NavbarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const { theme, setTheme } = useTheme()
   const supabase = createClient()
 
   async function handleLogout() {
@@ -83,6 +86,14 @@ export function Navbar({ profile, unreadCount }: NavbarProps) {
         </nav>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            title="Alternar tema"
+          >
+            <Sun className="size-4 hidden dark:block" />
+            <Moon className="size-4 dark:hidden" />
+          </button>
           <Link href="/notifications" className="relative p-2 rounded-lg hover:bg-muted transition-colors">
             <Bell className="size-4" />
             {unreadCount > 0 && (
@@ -156,6 +167,14 @@ export function Navbar({ profile, unreadCount }: NavbarProps) {
           </div>
           <span>Alertas</span>
         </Link>
+        <button
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs text-muted-foreground"
+        >
+          <Sun className="size-5 hidden dark:block" />
+          <Moon className="size-5 dark:hidden" />
+          <span>Tema</span>
+        </button>
       </nav>
     </>
   )

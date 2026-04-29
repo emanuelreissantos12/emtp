@@ -72,7 +72,7 @@ export default async function ChallengePage({
   const result = Array.isArray(challenge.result) ? challenge.result[0] : challenge.result
   const sets = result?.sets ?? []
   const pendingProposal = (challenge.proposals ?? []).find(
-    (p: any) => p.status === 'pending'
+    (p: any) => p.status === 'pending' || p.status === 'team_accepted'
   )
   const canSubmitResult =
     (isChallenger || isChallenged) &&

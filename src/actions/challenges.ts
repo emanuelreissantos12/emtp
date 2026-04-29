@@ -586,7 +586,7 @@ export async function proposeTime(
 }
 
 // ============================================================
-// Aceitar proposta de horário (pela outra dupla)
+// Aceitar proposta de horário (pela outra dupla — aguarda admin)
 // ============================================================
 
 export async function acceptProposal(proposalId: string) {
@@ -601,21 +601,17 @@ export async function acceptProposal(proposalId: string) {
 
   if (!proposal) throw new Error('Proposta não encontrada')
 
+  // Marca como acordada pelas duas duplas — aguarda confirmação do admin
   await admin
     .from('challenge_proposals')
-    .update({ status: 'accepted' })
+    .update({ status: 'team_accepted' })
     .eq('id', proposalId)
-
-  await admin
-    .from('challenges')
-    .update({ status: 'scheduled' })
-    .eq('id', proposal.challenge_id)
 
   revalidatePath(`/challenges/${proposal.challenge_id}`)
 }
 
 // ============================================================
-// Confirmar horário (admin)
+// Confirmar horário (admin — último passo)
 // ============================================================
 
 export async function confirmProposal(proposalId: string) {
@@ -630,6 +626,9 @@ export async function confirmProposal(proposalId: string) {
     .single()
 
   if (!proposal) throw new Error('Proposta não encontrada')
+  if (!['pending', 'team_accepted'].includes(proposal.status)) {
+    throw new Error('Esta proposta já foi processada')
+  }
 
   await admin
     .from('challenge_proposals')
