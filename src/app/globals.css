@@ -123,13 +123,12 @@
   }
   html {
     @apply font-sans;
+  }
+  body {
+    @apply text-foreground;
     background-image: url('/padel-bg.png');
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
-  }
-  body {
-    @apply text-foreground;
-    background: transparent;
   }
 }
