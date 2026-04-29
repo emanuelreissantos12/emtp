@@ -38,20 +38,21 @@ export default async function ChallengePage({
 
   // Usa admin client para evitar bloqueio por RLS; acesso verificado manualmente abaixo
   const admin = createAdminClient()
-  const { data: challenge } = await admin
+  const { data: challenge, error: challengeError } = await admin
     .from('challenges')
     .select(`
       *,
       challenger_team:teams!challenges_challenger_team_id_fkey(*),
       challenged_team:teams!challenges_challenged_team_id_fkey(*),
       category:categories(code, name),
-      selected_slot:schedule_slots(*, court:courts(name)),
       messages:challenge_messages(*, author:profiles(name)),
-      proposals:challenge_proposals(*, slot:schedule_slots(*, court:courts(name))),
+      proposals:challenge_proposals(*),
       result:match_results(*, sets:match_sets(*))
     `)
     .eq('id', id)
     .single()
+
+  if (challengeError) console.error('[challenge page]', challengeError)
 
   if (!challenge) notFound()
 
