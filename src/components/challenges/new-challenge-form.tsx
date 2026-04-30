@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition } from 'react'
 import { createChallenge } from '@/actions/challenges'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
@@ -37,11 +37,10 @@ export function NewChallengeForm({ targets, courts, prefillTargetId }: Props) {
   const selected = targets.find((t) => t.id === selectedId)
   const canSubmit = !!selected && !selected.lockReason
 
-  const [minDate, setMinDate] = useState('')
-  useEffect(() => {
+  const [minDate] = useState(() => {
     const d = new Date()
-    setMinDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
-  }, [])
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -133,6 +132,7 @@ export function NewChallengeForm({ targets, courts, prefillTargetId }: Props) {
               value={date}
               min={minDate}
               onChange={(e) => setDate(e.target.value)}
+              suppressHydrationWarning
               className="border rounded-lg px-3 py-2 text-sm w-full bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
             />
           </div>
