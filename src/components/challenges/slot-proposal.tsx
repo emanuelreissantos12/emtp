@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { proposeTime, acceptProposal, confirmProposal } from '@/actions/challenges'
@@ -26,7 +26,11 @@ export function SlotProposal({ challengeId, pendingProposal, canPropose, myTeamI
   const [time, setTime] = useState('10:00')
   const [court, setCourt] = useState(COURTS[0])
 
-  const minDate = new Date().toISOString().split('T')[0]
+  const [minDate, setMinDate] = useState('')
+  useEffect(() => {
+    const d = new Date()
+    setMinDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+  }, [])
 
   const iAmProposer = pendingProposal && myTeamId && pendingProposal.proposed_by_team_id === myTeamId
   const isTeamAccepted = pendingProposal?.status === 'team_accepted'
