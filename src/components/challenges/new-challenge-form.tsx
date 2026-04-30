@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { createChallenge } from '@/actions/challenges'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
@@ -37,10 +37,11 @@ export function NewChallengeForm({ targets, courts, prefillTargetId }: Props) {
   const selected = targets.find((t) => t.id === selectedId)
   const canSubmit = !!selected && !selected.lockReason
 
-  // Mínimo: amanhã
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const minDate = tomorrow.toISOString().split('T')[0]
+  const [minDate, setMinDate] = useState('')
+  useEffect(() => {
+    const d = new Date()
+    setMinDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+  }, [])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
