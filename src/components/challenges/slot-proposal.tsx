@@ -26,9 +26,7 @@ export function SlotProposal({ challengeId, pendingProposal, canPropose, myTeamI
   const [time, setTime] = useState('10:00')
   const [court, setCourt] = useState(COURTS[0])
 
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const minDate = tomorrow.toISOString().split('T')[0]
+  const minDate = new Date().toISOString().split('T')[0]
 
   const iAmProposer = pendingProposal && myTeamId && pendingProposal.proposed_by_team_id === myTeamId
   const isTeamAccepted = pendingProposal?.status === 'team_accepted'
