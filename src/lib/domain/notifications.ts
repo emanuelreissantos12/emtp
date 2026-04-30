@@ -59,6 +59,41 @@ export function buildResultValidatedNotification(
   }
 }
 
+export function buildProposalReceivedNotification(
+  teamName: string,
+  challengeId: string
+): NotificationPayload {
+  return {
+    type: NOTIFICATION_TYPES.CHALLENGE_PROPOSAL,
+    title: 'Nova proposta de horário',
+    body: `A dupla ${teamName} propôs um horário para o jogo.`,
+    action_url: `/challenges/${challengeId}`,
+  }
+}
+
+export function buildProposalAcceptedNotification(
+  teamName: string,
+  challengeId: string
+): NotificationPayload {
+  return {
+    type: NOTIFICATION_TYPES.CHALLENGE_SLOT_ACCEPTED,
+    title: 'Horário aceite',
+    body: `A dupla ${teamName} aceitou o horário proposto. A aguardar confirmação do admin.`,
+    action_url: `/challenges/${challengeId}`,
+  }
+}
+
+export function buildMatchConfirmedNotification(
+  challengeId: string
+): NotificationPayload {
+  return {
+    type: NOTIFICATION_TYPES.CHALLENGE_SLOT_ACCEPTED,
+    title: 'Jogo confirmado',
+    body: 'O horário foi confirmado pelo admin. Bom jogo!',
+    action_url: `/challenges/${challengeId}`,
+  }
+}
+
 export function buildChallengeExpiringNotification(
   daysLeft: number,
   challengeId: string

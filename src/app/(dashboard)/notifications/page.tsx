@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
-import { MarkNotificationsRead } from '@/components/notifications/mark-read'
+import { AutoMarkRead } from '@/components/notifications/auto-mark-read'
 import { Bell, Swords, CheckCircle, AlertTriangle, Info } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -44,15 +44,11 @@ export default async function NotificationsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Bell className="size-6" />
-          Notificações
-        </h1>
-        {unreadIds.length > 0 && (
-          <MarkNotificationsRead ids={unreadIds} />
-        )}
-      </div>
+      <AutoMarkRead ids={unreadIds} />
+      <h1 className="text-2xl font-bold flex items-center gap-2">
+        <Bell className="size-6" />
+        Notificações
+      </h1>
 
       {(notifications?.length ?? 0) === 0 && (
         <p className="text-muted-foreground text-sm text-center py-16">

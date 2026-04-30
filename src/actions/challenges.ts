@@ -13,6 +13,9 @@ import {
   buildChallengeReceivedNotification,
   buildResultSubmittedNotification,
   buildResultValidatedNotification,
+  buildProposalReceivedNotification,
+  buildProposalAcceptedNotification,
+  buildMatchConfirmedNotification,
 } from '@/lib/domain/notifications'
 import type { SetScore } from '@/lib/domain/result'
 import type { RankingRow } from '@/types/database'
@@ -541,11 +544,18 @@ export async function proposeTime(
 
   const { data: myTeam } = await supabase
     .from('teams')
-    .select('id')
+    .select('id, name')
     .eq('captain_profile_id', profile.id)
     .maybeSingle()
 
   if (!myTeam && profile.role !== 'admin') throw new Error('Sem permissão')
+
+  // Carrega o desafio para saber as duas duplas
+  const { data: challenge } = await admin
+    .from('challenges')
+    .select('*, challenger_team:teams!challenges_challenger_team_id_fkey(id, captain_profile_id, name), challenged_team:teams!challenges_challenged_team_id_fkey(id, captain_profile_id, name)')
+    .eq('id', challengeId)
+    .single()
 
   // Expira propostas pendentes anteriores
   await admin
@@ -566,6 +576,28 @@ export async function proposeTime(
     .from('challenges')
     .update({ status: 'negotiating' })
     .eq('id', challengeId)
+
+  // Notifica a outra dupla e os admins
+  if (challenge) {
+    const proposerName = myTeam?.name ?? 'Admin'
+    const notif = buildProposalReceivedNotification(proposerName, challengeId)
+
+    // Outra dupla
+    const otherTeam = myTeam?.id === challenge.challenger_team_id
+      ? challenge.challenged_team
+      : challenge.challenger_team
+    if (otherTeam?.captain_profile_id) {
+      await admin.from('notifications').insert({ profile_id: otherTeam.captain_profile_id, ...notif })
+    }
+
+    // Admins
+    const { data: admins } = await admin.from('profiles').select('id').eq('role', 'admin')
+    for (const a of admins ?? []) {
+      if (a.id !== profile.id) {
+        await admin.from('notifications').insert({ profile_id: a.id, ...notif })
+      }
+    }
+  }
 
   revalidatePath(`/challenges/${challengeId}`)
 }
@@ -591,6 +623,37 @@ export async function acceptProposal(proposalId: string) {
     .from('challenge_proposals')
     .update({ status: 'team_accepted' })
     .eq('id', proposalId)
+
+  // Notifica a dupla que fez a proposta e os admins
+  const { data: challenge } = await admin
+    .from('challenges')
+    .select('*, challenger_team:teams!challenges_challenger_team_id_fkey(id, captain_profile_id, name), challenged_team:teams!challenges_challenged_team_id_fkey(id, captain_profile_id, name)')
+    .eq('id', proposal.challenge_id)
+    .single()
+
+  if (challenge) {
+    // Quem aceitou
+    const { data: myTeam } = await supabase.from('teams').select('name').eq('captain_profile_id', profile.id).maybeSingle()
+    const accepterName = myTeam?.name ?? 'A outra dupla'
+    const notif = buildProposalAcceptedNotification(accepterName, proposal.challenge_id)
+
+    // Dupla que propôs
+    if (proposal.proposed_by_team_id) {
+      const proposerTeam = proposal.proposed_by_team_id === challenge.challenger_team_id
+        ? challenge.challenger_team
+        : challenge.challenged_team
+      if (proposerTeam?.captain_profile_id) {
+        await admin.from('notifications').insert({ profile_id: proposerTeam.captain_profile_id, ...notif })
+      }
+    }
+
+    // Admins
+    const { data: admins } = await admin.from('profiles').select('id').eq('role', 'admin')
+    const adminNotif = { ...notif, title: 'Acordo de horário — confirmar', body: `As duplas acordaram um horário. Confirma o jogo.` }
+    for (const a of admins ?? []) {
+      await admin.from('notifications').insert({ profile_id: a.id, ...adminNotif, action_url: `/challenges/${proposal.challenge_id}` })
+    }
+  }
 
   revalidatePath(`/challenges/${proposal.challenge_id}`)
 }
@@ -632,6 +695,24 @@ export async function confirmProposal(proposalId: string) {
     entity_id: proposalId,
     metadata: { challenge_id: proposal.challenge_id },
   })
+
+  // Notifica as duas duplas
+  const { data: challenge } = await admin
+    .from('challenges')
+    .select('challenger_team:teams!challenges_challenger_team_id_fkey(captain_profile_id), challenged_team:teams!challenges_challenged_team_id_fkey(captain_profile_id)')
+    .eq('id', proposal.challenge_id)
+    .single()
+
+  if (challenge) {
+    const notif = buildMatchConfirmedNotification(proposal.challenge_id)
+    const captains = [
+      (challenge.challenger_team as any)?.captain_profile_id,
+      (challenge.challenged_team as any)?.captain_profile_id,
+    ].filter(Boolean)
+    for (const captainId of captains) {
+      await admin.from('notifications').insert({ profile_id: captainId, ...notif })
+    }
+  }
 
   revalidatePath(`/challenges/${proposal.challenge_id}`)
 }
