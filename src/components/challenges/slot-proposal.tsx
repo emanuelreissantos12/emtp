@@ -40,7 +40,7 @@ export function SlotProposal({ challengeId, pendingProposal, canPropose, myTeamI
     if (!date) { toast.error('Escolhe uma data.'); return }
     setLoading(true)
     try {
-      await proposeTime(challengeId, `${date}T${time}:00`, court)
+      await proposeTime(challengeId, new Date(`${date}T${time}:00`).toISOString(), court)
       toast.success('Horário proposto!')
       setProposing(false)
       setDate('')

@@ -50,7 +50,7 @@ export function NewChallengeForm({ targets, courts, prefillTargetId }: Props) {
     const formData = new FormData()
     formData.set('target_team_id', selectedId)
     if (date) {
-      formData.set('proposed_datetime', `${date}T${time}:00`)
+      formData.set('proposed_datetime', new Date(`${date}T${time}:00`).toISOString())
       formData.set('proposed_court', court)
     }
     if (message.trim()) formData.set('message', message.trim())

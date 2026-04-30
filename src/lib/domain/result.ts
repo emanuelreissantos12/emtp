@@ -2,7 +2,7 @@ import type { MatchSet } from '@/types/database'
 
 // ============================================================
 // Regras de resultado — Regulamento art. 6.2
-// "Melhor de 3 sets, com super tie-break no terceiro set"
+// "Melhor de 3 sets, 3.º set completo em caso de 1-1"
 // ============================================================
 
 export interface SetScore {
@@ -85,30 +85,30 @@ export function parseMatchResult(sets: SetScore[]): ParsedResult {
     else challengedSets++
   }
 
-  // Se 1-1 em sets, precisa do super tie-break
+  // Se 1-1 em sets, precisa do 3.º set completo
   if (challengerSets === 1 && challengedSets === 1) {
     if (sets.length !== 3) {
       return {
         valid: false,
-        error: 'Resultado 1-1 em sets requer o super tie-break.',
+        error: 'Resultado 1-1 em sets requer o 3.º set.',
         challengerSetsWon: 1,
         challengedSetsWon: 1,
         winner: null,
       }
     }
 
-    const tb = sets[2]
-    if (!isSuperTieBreakValid(tb.challenger, tb.challenged)) {
+    const s3 = sets[2]
+    if (!isNormalSetValid(s3.challenger, s3.challenged)) {
       return {
         valid: false,
-        error: `Super tie-break inválido (${tb.challenger}-${tb.challenged}). Tem de chegar a 10 com diferença de 2.`,
+        error: `3.º set inválido (${s3.challenger}-${s3.challenged}). Sets válidos: 6-0 a 6-4, 7-5, 7-6.`,
         challengerSetsWon: 1,
         challengedSetsWon: 1,
         winner: null,
       }
     }
 
-    const winner = tb.challenger > tb.challenged ? 'challenger' : 'challenged'
+    const winner = s3.challenger > s3.challenged ? 'challenger' : 'challenged'
     return { valid: true, challengerSetsWon: 2, challengedSetsWon: 1, winner }
   }
 

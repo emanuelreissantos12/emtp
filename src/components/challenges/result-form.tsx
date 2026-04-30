@@ -103,13 +103,13 @@ export function ResultForm({
         {sets.map((set, i) => (
           <div key={i}>
             <Label className="text-xs mb-1 block">
-              {i === 2 ? 'Super Tie-Break' : `Set ${i + 1}`}
+              {i === 2 ? '3.º Set' : `Set ${i + 1}`}
             </Label>
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <Input
                 type="number"
                 min={0}
-                max={i === 2 ? 99 : 7}
+                max={7}
                 value={set.challenger}
                 onChange={(e) => updateSet(i, 'challenger', e.target.value)}
                 className="text-center text-lg font-bold"
@@ -118,7 +118,7 @@ export function ResultForm({
               <Input
                 type="number"
                 min={0}
-                max={i === 2 ? 99 : 7}
+                max={7}
                 value={set.challenged}
                 onChange={(e) => updateSet(i, 'challenged', e.target.value)}
                 className="text-center text-lg font-bold"
