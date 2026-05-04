@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button'
 import { proposeTime, acceptProposal, confirmProposal } from '@/actions/challenges'
 import { toast } from 'sonner'
 import { Calendar, CheckCircle, Clock, ShieldCheck, ThumbsUp } from 'lucide-react'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { formatPT } from '@/lib/utils'
 
 const COURTS = ['Campo 1', 'Campo 2']
 
@@ -77,7 +76,7 @@ export function SlotProposal({ challengeId, pendingProposal, canPropose, myTeamI
 
   function formatProposal(p: any) {
     if (!p?.proposed_datetime) return '—'
-    return format(new Date(p.proposed_datetime), "EEEE, dd 'de' MMM 'às' HH:mm", { locale: ptBR })
+    return formatPT(p.proposed_datetime, { weekday: true, date: true, time: true })
   }
 
   function proposalLabel() {

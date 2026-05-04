@@ -3,10 +3,8 @@ import { redirect } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { AutoMarkRead } from '@/components/notifications/auto-mark-read'
 import { Bell, Swords, CheckCircle, AlertTriangle, Info } from 'lucide-react'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
+import { cn, formatPT } from '@/lib/utils'
 
 const TYPE_ICON: Record<string, React.ElementType> = {
   challenge_received: Swords,
@@ -97,7 +95,7 @@ function NotificationContent({
         <p className={cn('text-sm', isUnread ? 'font-semibold' : 'font-medium')}>{n.title}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>
         <p className="text-xs text-muted-foreground mt-1">
-          {format(new Date(n.created_at), "dd MMM 'às' HH:mm", { locale: ptBR })}
+          {formatPT(n.created_at)}
         </p>
       </div>
       {isUnread && (

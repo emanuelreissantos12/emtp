@@ -14,6 +14,7 @@ import { daysUntilDeadline, isChallengeExpired } from '@/lib/domain/challenge'
 import { formatScore } from '@/lib/domain/result'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { formatPT } from '@/lib/utils'
 import { Clock, Trophy, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
 
 export default async function ChallengePage({
@@ -135,7 +136,7 @@ export default async function ChallengePage({
                 <p className="font-medium text-sm">Horário confirmado</p>
                 <p className="text-xs text-muted-foreground">
                   {confirmed.proposed_court && `${confirmed.proposed_court} · `}
-                  {confirmed.proposed_datetime && format(new Date(confirmed.proposed_datetime), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
+                  {confirmed.proposed_datetime && formatPT(confirmed.proposed_datetime)}
                 </p>
               </div>
             </CardContent>
