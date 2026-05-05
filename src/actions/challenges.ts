@@ -16,6 +16,7 @@ import {
   buildProposalReceivedNotification,
   buildProposalAcceptedNotification,
   buildMatchConfirmedNotification,
+  buildChallengeCancelledNotification,
 } from '@/lib/domain/notifications'
 import type { SetScore } from '@/lib/domain/result'
 import type { RankingRow } from '@/types/database'
@@ -715,4 +716,71 @@ export async function confirmProposal(proposalId: string) {
   }
 
   revalidatePath(`/challenges/${proposal.challenge_id}`)
+}
+
+// ============================================================
+// Anular desafio (dupla envolvida ou admin)
+// ============================================================
+
+export async function cancelChallenge(challengeId: string) {
+  const { supabase, profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  const { data: challenge } = await admin
+    .from('challenges')
+    .select(`
+      *,
+      challenger_team:teams!challenges_challenger_team_id_fkey(id, name, captain_profile_id),
+      challenged_team:teams!challenges_challenged_team_id_fkey(id, name, captain_profile_id)
+    `)
+    .eq('id', challengeId)
+    .single()
+
+  if (!challenge) throw new Error('Desafio não encontrado')
+
+  if (['completed', 'cancelled', 'expired'].includes(challenge.status)) {
+    throw new Error('Este desafio já não pode ser anulado')
+  }
+
+  const isAdmin = profile.role === 'admin'
+  const isChallenger = (challenge.challenger_team as any)?.captain_profile_id === profile.id
+  const isChallenged = (challenge.challenged_team as any)?.captain_profile_id === profile.id
+  if (!isAdmin && !isChallenger && !isChallenged) throw new Error('Sem permissão')
+
+  await admin.from('challenges').update({ status: 'cancelled' }).eq('id', challengeId)
+
+  await admin.from('challenge_proposals')
+    .update({ status: 'expired' })
+    .eq('challenge_id', challengeId)
+    .in('status', ['pending', 'team_accepted'])
+
+  const cancellerName = isAdmin
+    ? 'Admin'
+    : (isChallenger ? (challenge.challenger_team as any)?.name : (challenge.challenged_team as any)?.name) ?? 'Uma dupla'
+
+  const notif = buildChallengeCancelledNotification(cancellerName, challengeId)
+
+  // Notifica a outra dupla
+  const otherCaptain = isChallenger
+    ? (challenge.challenged_team as any)?.captain_profile_id
+    : (challenge.challenger_team as any)?.captain_profile_id
+  if (otherCaptain) await admin.from('notifications').insert({ profile_id: otherCaptain, ...notif })
+
+  // Notifica admins se não foi o admin a anular
+  if (!isAdmin) {
+    const { data: admins } = await admin.from('profiles').select('id').eq('role', 'admin')
+    for (const a of admins ?? []) {
+      await admin.from('notifications').insert({ profile_id: a.id, ...notif })
+    }
+  }
+
+  await admin.from('audit_logs').insert({
+    actor_profile_id: profile.id,
+    action: 'challenge.cancelled',
+    entity_type: 'challenges',
+    entity_id: challengeId,
+  })
+
+  revalidatePath(`/challenges/${challengeId}`)
+  revalidatePath('/challenges')
 }

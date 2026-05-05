@@ -9,6 +9,7 @@ import { ResultForm } from '@/components/challenges/result-form'
 import { ChatBox } from '@/components/challenges/chat-box'
 import { SlotProposal } from '@/components/challenges/slot-proposal'
 import { AdminResultOverride } from '@/components/challenges/admin-result-override'
+import { CancelChallengeButton } from '@/components/challenges/cancel-challenge-button'
 import { validateResult } from '@/actions/challenges'
 import { daysUntilDeadline, isChallengeExpired } from '@/lib/domain/challenge'
 import { formatScore } from '@/lib/domain/result'
@@ -103,7 +104,12 @@ export default async function ChallengePage({
             {format(new Date(challenge.created_at), 'dd MMM yyyy', { locale: ptBR })}
           </p>
         </div>
-        <ChallengeStatusBadge status={challenge.status} />
+        <div className="flex flex-col items-end gap-2">
+          <ChallengeStatusBadge status={challenge.status} />
+          {!['completed', 'cancelled', 'expired'].includes(challenge.status) && (isAdmin || isChallenger || isChallenged) && (
+            <CancelChallengeButton challengeId={challenge.id} />
+          )}
+        </div>
       </div>
 
       {/* Prazo */}

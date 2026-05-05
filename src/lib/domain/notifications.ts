@@ -94,6 +94,18 @@ export function buildMatchConfirmedNotification(
   }
 }
 
+export function buildChallengeCancelledNotification(
+  cancellerName: string,
+  challengeId: string
+): NotificationPayload {
+  return {
+    type: NOTIFICATION_TYPES.CHALLENGE_RECEIVED,
+    title: 'Desafio anulado',
+    body: `O desafio foi anulado por ${cancellerName}.`,
+    action_url: `/challenges/${challengeId}`,
+  }
+}
+
 export function buildChallengeExpiringNotification(
   daysLeft: number,
   challengeId: string
