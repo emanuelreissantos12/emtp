@@ -113,8 +113,24 @@ export default async function RankingPage() {
   const iLostLast =
     lastCompletedChallenge?.result?.winner_team_id !== myTeam?.id
 
+  // Desafios ativos do torneio (para mostrar por baixo do ranking)
+  const { data: activeChallenges } = await admin
+    .from('challenges')
+    .select(`
+      id, status, category_id,
+      challenger_team:teams!challenges_challenger_team_id_fkey(id, name),
+      challenged_team:teams!challenges_challenged_team_id_fkey(id, name)
+    `)
+    .eq('tournament_id', tournament.id)
+    .not('status', 'in', '("completed","cancelled","expired")')
+    .order('created_at', { ascending: false })
+
   function getRankingsForCategory(categoryId: string): RankingRow[] {
     return (allRankings ?? []).filter((r) => r.category_id === categoryId) as RankingRow[]
+  }
+
+  function getChallengesForCategory(categoryId: string) {
+    return (activeChallenges ?? []).filter((c) => c.category_id === categoryId)
   }
 
   return (
@@ -138,6 +154,7 @@ export default async function RankingPage() {
 
         {(categories ?? []).map((cat) => {
           const catRankings = getRankingsForCategory(cat.id)
+          const catChallenges = getChallengesForCategory(cat.id)
           const myRankingHere = catRankings.find((r) => r.team_id === myTeam?.id)
           const eligibleTargets = myTeam
             ? getEligibleTargets(myTeam.id, catRankings)
@@ -150,6 +167,39 @@ export default async function RankingPage() {
                   <p className="text-muted-foreground text-sm text-center py-8">
                     Sem equipas nesta categoria.
                   </p>
+                )}
+
+                {catChallenges.length > 0 && (
+                  <div className="pb-1">
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                      <Swords className="size-3.5" />
+                      Desafios em curso
+                    </p>
+                    <div className="space-y-1.5">
+                      {catChallenges.map((c: any) => {
+                        const isNegotiating = ['pending', 'negotiating'].includes(c.status)
+                        const isScheduled = c.status === 'scheduled'
+                        const isResultPending = c.status === 'result_pending'
+                        return (
+                          <Link key={c.id} href={`/challenges/${c.id}`}>
+                            <div className={cn(
+                              'flex items-center justify-between px-3 py-2 rounded-lg border text-xs transition-colors hover:opacity-80',
+                              isScheduled && 'border-green-400 bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-300',
+                              isNegotiating && 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-300',
+                              isResultPending && 'border-orange-400 bg-orange-50 dark:bg-orange-950/30 text-orange-800 dark:text-orange-300',
+                            )}>
+                              <span className="font-medium">
+                                {c.challenger_team?.name} <span className="opacity-60 font-normal">vs</span> {c.challenged_team?.name}
+                              </span>
+                              <span className="opacity-70 shrink-0 ml-2">
+                                {isScheduled ? 'Jogo marcado' : isResultPending ? 'Resultado pendente' : 'A negociar'}
+                              </span>
+                            </div>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  </div>
                 )}
 
                 {catRankings.map((entry) => {
