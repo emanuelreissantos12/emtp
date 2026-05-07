@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LinkButton } from '@/components/ui/link-button'
 import { getEligibleTargets, getChallengeLockReason } from '@/lib/domain/challenge'
+import { LockReasonButton } from '@/components/challenges/lock-reason-button'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { Trophy, Swords, Shield, TrendingUp, TrendingDown } from 'lucide-react'
+import { Trophy, Swords, TrendingUp, TrendingDown } from 'lucide-react'
 import type { RankingRow } from '@/types/database'
 
 export default async function RankingPage() {
@@ -371,9 +372,7 @@ export default async function RankingPage() {
                         )}
 
                         {isEligible && lockReason && !isMyTeam && (
-                          <div title={lockReason}>
-                            <Shield className="size-4 text-muted-foreground shrink-0" />
-                          </div>
+                          <LockReasonButton reason={lockReason} />
                         )}
                       </CardContent>
                     </Card>
