@@ -145,11 +145,11 @@ export default async function RankingPage() {
   }
 
   function getChallengesForCategory(categoryId: string) {
-    return (activeChallenges ?? []).filter((c) => c.category_id === categoryId)
+    return (activeChallenges ?? []).filter((c: any) => c.category_id === categoryId)
   }
 
   function getRecentCompletedForCategory(categoryId: string) {
-    return (recentCompleted ?? []).filter((c) => c.category_id === categoryId)
+    return (recentCompleted ?? []).filter((c: any) => c.category_id === categoryId)
   }
 
   return (
