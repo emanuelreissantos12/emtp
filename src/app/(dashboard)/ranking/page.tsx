@@ -152,6 +152,14 @@ export default async function RankingPage() {
     return (recentCompleted ?? []).filter((c: any) => c.category_id === categoryId)
   }
 
+  // Equipas com desafio ativo (não podem ser desafiadas)
+  const teamsWithActiveChallenge = new Set<string>(
+    (activeChallenges ?? []).flatMap((c: any) => [
+      c.challenger_team?.id,
+      c.challenged_team?.id,
+    ]).filter(Boolean)
+  )
+
   return (
     <div className="space-y-4">
       <div>
@@ -270,6 +278,10 @@ export default async function RankingPage() {
                       entry.team_id,
                       !iLostLast
                     )
+                    // Bloqueia se a dupla alvo já tem desafio ativo
+                    if (!lockReason && teamsWithActiveChallenge.has(entry.team_id)) {
+                      lockReason = 'Esta dupla já tem um desafio em aberto.'
+                    }
                   }
 
                   const canChallenge = isEligible && !lockReason && !isMyTeam

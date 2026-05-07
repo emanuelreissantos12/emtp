@@ -114,7 +114,7 @@ export async function createChallenge(formData: FormData) {
   )
   if (lockReason) throw new Error(lockReason)
 
-  // Verifica dupla alvo ativa
+  // Verifica dupla alvo ativa e sem desafios em aberto
   const { data: targetTeam } = await supabase
     .from('teams')
     .select('status')
@@ -122,6 +122,16 @@ export async function createChallenge(formData: FormData) {
     .single()
   if (targetTeam?.status !== 'active') {
     throw new Error('A dupla alvo está suspensa ou retirada')
+  }
+
+  const { data: targetActiveChallenges } = await supabase
+    .from('challenges')
+    .select('id')
+    .or(`challenger_team_id.eq.${targetTeamId},challenged_team_id.eq.${targetTeamId}`)
+    .not('status', 'in', '("completed","cancelled","expired")')
+    .limit(1)
+  if (targetActiveChallenges && targetActiveChallenges.length > 0) {
+    throw new Error('Esta dupla já tem um desafio em aberto. Aguarda que termine.')
   }
 
   // Cria o desafio
