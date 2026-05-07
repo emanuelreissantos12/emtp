@@ -125,12 +125,31 @@ export default async function RankingPage() {
     .not('status', 'in', '("completed","cancelled","expired")')
     .order('created_at', { ascending: false })
 
+  // Desafios completados nas últimas 24h
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const { data: recentCompleted } = await admin
+    .from('challenges')
+    .select(`
+      id, status, category_id,
+      challenger_team:teams!challenges_challenger_team_id_fkey(id, name),
+      challenged_team:teams!challenges_challenged_team_id_fkey(id, name),
+      result:match_results(winner_team_id, sets:match_sets(set_number, challenger_games, challenged_games))
+    `)
+    .eq('tournament_id', tournament.id)
+    .eq('status', 'completed')
+    .gte('updated_at', since24h)
+    .order('updated_at', { ascending: false })
+
   function getRankingsForCategory(categoryId: string): RankingRow[] {
     return (allRankings ?? []).filter((r) => r.category_id === categoryId) as RankingRow[]
   }
 
   function getChallengesForCategory(categoryId: string) {
     return (activeChallenges ?? []).filter((c) => c.category_id === categoryId)
+  }
+
+  function getRecentCompletedForCategory(categoryId: string) {
+    return (recentCompleted ?? []).filter((c) => c.category_id === categoryId)
   }
 
   return (
@@ -155,6 +174,7 @@ export default async function RankingPage() {
         {(categories ?? []).map((cat) => {
           const catRankings = getRankingsForCategory(cat.id)
           const catChallenges = getChallengesForCategory(cat.id)
+          const catCompleted = getRecentCompletedForCategory(cat.id)
           const myRankingHere = catRankings.find((r) => r.team_id === myTeam?.id)
           const eligibleTargets = myTeam
             ? getEligibleTargets(myTeam.id, catRankings)
@@ -194,6 +214,39 @@ export default async function RankingPage() {
                               <span className="opacity-70 shrink-0 ml-2">
                                 {isScheduled ? 'Jogo marcado' : isResultPending ? 'Resultado pendente' : 'A negociar'}
                               </span>
+                            </div>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {catCompleted.length > 0 && (
+                  <div className="pb-1">
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                      <Trophy className="size-3.5" />
+                      Resultados recentes
+                    </p>
+                    <div className="space-y-1.5">
+                      {catCompleted.map((c: any) => {
+                        const result = Array.isArray(c.result) ? c.result[0] : c.result
+                        const sets = [...(result?.sets ?? [])].sort((a: any, b: any) => a.set_number - b.set_number)
+                        const score = sets.map((s: any) => `${s.challenger_games}-${s.challenged_games}`).join(', ')
+                        const winnerIsChallenger = result?.winner_team_id === c.challenger_team?.id
+                        return (
+                          <Link key={c.id} href={`/challenges/${c.id}`}>
+                            <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-muted bg-muted/30 text-xs hover:opacity-80 transition-colors">
+                              <span>
+                                <span className={cn('font-medium', winnerIsChallenger && 'text-green-700 dark:text-green-400')}>
+                                  {c.challenger_team?.name}
+                                </span>
+                                <span className="text-muted-foreground mx-1.5">vs</span>
+                                <span className={cn('font-medium', !winnerIsChallenger && 'text-green-700 dark:text-green-400')}>
+                                  {c.challenged_team?.name}
+                                </span>
+                              </span>
+                              <span className="text-muted-foreground shrink-0 ml-2 font-mono">{score}</span>
                             </div>
                           </Link>
                         )
