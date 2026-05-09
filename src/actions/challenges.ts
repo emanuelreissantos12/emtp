@@ -341,7 +341,7 @@ export async function validateResult(resultId: string, accepted: boolean) {
 
   await admin
     .from('challenges')
-    .update({ status: 'completed' })
+    .update({ status: 'completed', updated_at: new Date().toISOString() })
     .eq('id', challenge.id)
 
   // Atualiza ranking se o desafiante venceu
@@ -479,7 +479,7 @@ export async function overrideResult(
 
   await admin
     .from('challenges')
-    .update({ status: 'completed' })
+    .update({ status: 'completed', updated_at: new Date().toISOString() })
     .eq('id', challengeId)
 
   // Aplica novo ranking se desafiante venceu
