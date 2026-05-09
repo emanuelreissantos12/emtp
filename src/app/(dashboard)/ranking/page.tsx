@@ -132,7 +132,7 @@ export default async function RankingPage() {
   const { data: recentCompleted } = await admin
     .from('challenges')
     .select(`
-      id, status, category_id,
+      id, status, category_id, updated_at,
       challenger_team:teams!challenges_challenger_team_id_fkey(id, name),
       challenged_team:teams!challenges_challenged_team_id_fkey(id, name),
       result:match_results(winner_team_id, validated_at, sets:match_sets(set_number, challenger_games, challenged_games))
@@ -153,8 +153,10 @@ export default async function RankingPage() {
     return (recentCompleted ?? []).filter((c: any) => {
       if (c.category_id !== categoryId) return false
       const result = Array.isArray(c.result) ? c.result[0] : c.result
-      if (!result?.validated_at) return false
-      return new Date(result.validated_at) >= new Date(since24h)
+      // validated_at é o mais fiável; fallback para updated_at do desafio
+      const refDate = result?.validated_at ?? c.updated_at
+      if (!refDate) return false
+      return new Date(refDate) >= new Date(since24h)
     })
   }
 
