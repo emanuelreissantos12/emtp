@@ -126,19 +126,21 @@ export default async function RankingPage() {
     .not('status', 'in', '("completed","cancelled","expired")')
     .order('created_at', { ascending: false })
 
-  // Desafios completados nas últimas 24h
+  // Desafios completados nas últimas 24h — filtra por validated_at do resultado
+  // (mais fiável que updated_at do desafio, que nem sempre é atualizado)
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data: recentCompleted } = await admin
     .from('challenges')
     .select(`
       id, status, category_id,
       challenger_team:teams!challenges_challenger_team_id_fkey(id, name),
       challenged_team:teams!challenges_challenged_team_id_fkey(id, name),
-      result:match_results(winner_team_id, sets:match_sets(set_number, challenger_games, challenged_games))
+      result:match_results(winner_team_id, validated_at, sets:match_sets(set_number, challenger_games, challenged_games))
     `)
     .eq('tournament_id', tournament.id)
     .eq('status', 'completed')
-    .gte('updated_at', since24h)
+    .gte('updated_at', since7d)
     .order('updated_at', { ascending: false })
 
   function getRankingsForCategory(categoryId: string): RankingRow[] {
@@ -150,7 +152,12 @@ export default async function RankingPage() {
   }
 
   function getRecentCompletedForCategory(categoryId: string) {
-    return (recentCompleted ?? []).filter((c: any) => c.category_id === categoryId)
+    return (recentCompleted ?? []).filter((c: any) => {
+      if (c.category_id !== categoryId) return false
+      const result = Array.isArray(c.result) ? c.result[0] : c.result
+      if (!result?.validated_at) return false
+      return new Date(result.validated_at) >= new Date(since24h)
+    })
   }
 
   // Equipas com desafio ativo (não podem ser desafiadas)
