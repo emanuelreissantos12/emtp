@@ -126,10 +126,9 @@ export default async function RankingPage() {
     .not('status', 'in', '("completed","cancelled","expired")')
     .order('created_at', { ascending: false })
 
-  // Desafios completados nas últimas 24h — filtra por validated_at do resultado
-  // (mais fiável que updated_at do desafio, que nem sempre é atualizado)
+  // Desafios completados — filtra em JS por validated_at (últimas 24h)
+  // Sem filtro de data na DB para não depender de updated_at (nem sempre atualizado)
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data: recentCompleted } = await admin
     .from('challenges')
     .select(`
@@ -140,7 +139,6 @@ export default async function RankingPage() {
     `)
     .eq('tournament_id', tournament.id)
     .eq('status', 'completed')
-    .gte('updated_at', since7d)
     .order('updated_at', { ascending: false })
 
   function getRankingsForCategory(categoryId: string): RankingRow[] {
