@@ -343,7 +343,7 @@ export async function validateResult(resultId: string, accepted: boolean) {
 
   await admin
     .from('challenges')
-    .update({ status: 'completed', updated_at: new Date().toISOString() })
+    .update({ status: 'completed' })
     .eq('id', challenge.id)
 
   // Atualiza ranking se o desafiante venceu
@@ -481,7 +481,7 @@ export async function overrideResult(
 
   await admin
     .from('challenges')
-    .update({ status: 'completed', updated_at: new Date().toISOString() })
+    .update({ status: 'completed' })
     .eq('id', challengeId)
 
   // Aplica novo ranking se desafiante venceu
@@ -824,7 +824,7 @@ export async function expireChallengeAdmin(challengeId: string) {
 
   await admin
     .from('challenges')
-    .update({ status: 'expired', updated_at: new Date().toISOString() })
+    .update({ status: 'expired' })
     .eq('id', challengeId)
 
   await admin
@@ -887,7 +887,7 @@ export async function extendChallengeDeadline(challengeId: string, extraDays: nu
 
   await admin
     .from('challenges')
-    .update({ deadline_at: newDeadline.toISOString(), updated_at: new Date().toISOString() })
+    .update({ deadline_at: newDeadline.toISOString() })
     .eq('id', challengeId)
 
   await admin.from('audit_logs').insert({
