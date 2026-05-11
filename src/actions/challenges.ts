@@ -314,7 +314,7 @@ export async function validateResult(resultId: string, accepted: boolean) {
     throw new Error('Resultado já processado')
   }
 
-  const challenge = result.challenge
+  const challenge = Array.isArray(result.challenge) ? result.challenge[0] : result.challenge
 
   if (!accepted) {
     await admin
