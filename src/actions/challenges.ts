@@ -134,7 +134,8 @@ export async function createChallenge(formData: FormData) {
     throw new Error('Esta dupla já tem um desafio em aberto. Aguarda que termine.')
   }
 
-  // Cria o desafio
+  // Cria o desafio — deadline muito distante (sem expiração automática)
+  const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
   const { data: challenge, error } = await admin
     .from('challenges')
     .insert({
@@ -143,6 +144,7 @@ export async function createChallenge(formData: FormData) {
       challenger_team_id: myTeam.id,
       challenged_team_id: targetTeamId,
       created_by: profile.id,
+      deadline_at: farFuture,
     })
     .select()
     .single()
@@ -793,4 +795,108 @@ export async function cancelChallenge(challengeId: string) {
 
   revalidatePath(`/challenges/${challengeId}`)
   revalidatePath('/challenges')
+}
+
+// ============================================================
+// Expirar desafio (admin) — marca como expired e notifica equipas
+// ============================================================
+
+export async function expireChallengeAdmin(challengeId: string) {
+  const { profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  if (profile.role !== 'admin') throw new Error('Sem permissão')
+
+  const { data: challenge } = await admin
+    .from('challenges')
+    .select(`
+      *,
+      challenger_team:teams!challenges_challenger_team_id_fkey(id, name, captain_profile_id),
+      challenged_team:teams!challenges_challenged_team_id_fkey(id, name, captain_profile_id)
+    `)
+    .eq('id', challengeId)
+    .single()
+
+  if (!challenge) throw new Error('Desafio não encontrado')
+  if (['completed', 'cancelled', 'expired'].includes(challenge.status)) {
+    throw new Error('Desafio já fechado')
+  }
+
+  await admin
+    .from('challenges')
+    .update({ status: 'expired', updated_at: new Date().toISOString() })
+    .eq('id', challengeId)
+
+  await admin
+    .from('challenge_proposals')
+    .update({ status: 'expired' })
+    .eq('challenge_id', challengeId)
+    .in('status', ['pending', 'team_accepted'])
+
+  const notif = {
+    type: 'challenge_expired',
+    title: 'Desafio expirado',
+    body: 'O prazo do desafio esgotou e foi encerrado pela organização.',
+    action_url: `/challenges/${challengeId}`,
+  }
+
+  const captains = [
+    (challenge.challenger_team as any)?.captain_profile_id,
+    (challenge.challenged_team as any)?.captain_profile_id,
+  ].filter(Boolean)
+
+  for (const captainId of captains) {
+    await admin.from('notifications').insert({ profile_id: captainId, ...notif })
+  }
+
+  await admin.from('audit_logs').insert({
+    actor_profile_id: profile.id,
+    action: 'challenge.expired',
+    entity_type: 'challenges',
+    entity_id: challengeId,
+  })
+
+  revalidatePath(`/challenges/${challengeId}`)
+  revalidatePath('/challenges')
+  revalidatePath('/ranking')
+}
+
+// ============================================================
+// Estender prazo do desafio (admin) — adiciona dias ao deadline
+// ============================================================
+
+export async function extendChallengeDeadline(challengeId: string, extraDays: number) {
+  const { profile } = await getSessionProfile()
+  const admin = createAdminClient()
+
+  if (profile.role !== 'admin') throw new Error('Sem permissão')
+
+  const { data: challenge } = await admin
+    .from('challenges')
+    .select('id, deadline_at, status')
+    .eq('id', challengeId)
+    .single()
+
+  if (!challenge) throw new Error('Desafio não encontrado')
+  if (['completed', 'cancelled', 'expired'].includes(challenge.status)) {
+    throw new Error('Desafio já fechado')
+  }
+
+  const currentDeadline = new Date(challenge.deadline_at)
+  const newDeadline = new Date(currentDeadline.getTime() + extraDays * 24 * 60 * 60 * 1000)
+
+  await admin
+    .from('challenges')
+    .update({ deadline_at: newDeadline.toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', challengeId)
+
+  await admin.from('audit_logs').insert({
+    actor_profile_id: profile.id,
+    action: 'challenge.deadline_extended',
+    entity_type: 'challenges',
+    entity_id: challengeId,
+    metadata: { extra_days: extraDays, new_deadline: newDeadline.toISOString() },
+  })
+
+  revalidatePath(`/challenges/${challengeId}`)
 }

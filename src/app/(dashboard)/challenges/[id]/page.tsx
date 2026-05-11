@@ -11,12 +11,11 @@ import { SlotProposal } from '@/components/challenges/slot-proposal'
 import { AdminResultOverride } from '@/components/challenges/admin-result-override'
 import { CancelChallengeButton } from '@/components/challenges/cancel-challenge-button'
 import { validateResult } from '@/actions/challenges'
-import { daysUntilDeadline, isChallengeExpired } from '@/lib/domain/challenge'
 import { formatScore } from '@/lib/domain/result'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { formatPT } from '@/lib/utils'
-import { Clock, Trophy, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
+import { Clock, Trophy, CheckCircle, XCircle } from 'lucide-react'
 
 export default async function ChallengePage({
   params,
@@ -70,8 +69,6 @@ export default async function ChallengePage({
     ? challenge.challenged_team
     : null
 
-  const days = daysUntilDeadline(challenge)
-  const expired = isChallengeExpired(challenge)
   const result = Array.isArray(challenge.result) ? challenge.result[0] : challenge.result
   const sets = result?.sets ?? []
   const pendingProposal = (challenge.proposals ?? []).find(
@@ -112,23 +109,7 @@ export default async function ChallengePage({
         </div>
       </div>
 
-      {/* Prazo */}
-      {!['completed', 'cancelled', 'expired'].includes(challenge.status) && (
-        <div
-          className={`flex items-center gap-2 text-sm p-3 rounded-lg ${
-            expired || days <= 0
-              ? 'bg-red-50 text-red-700 dark:bg-red-950/30'
-              : days <= 2
-              ? 'bg-orange-50 text-orange-700 dark:bg-orange-950/30'
-              : 'bg-muted'
-          }`}
-        >
-          <Clock className="size-4 shrink-0" />
-          {expired || days <= 0
-            ? 'Prazo esgotado! Contacta a organização.'
-            : `Prazo: ${days} dia${days !== 1 ? 's' : ''} restante${days !== 1 ? 's' : ''}`}
-        </div>
-      )}
+      {/* Prazo — removido: desafios ficam abertos até serem concluídos */}
 
       {/* Horário confirmado */}
       {challenge.status === 'scheduled' && (() => {

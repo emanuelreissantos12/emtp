@@ -4,10 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChallengeStatusBadge } from '@/components/challenges/challenge-status-badge'
 import { LinkButton } from '@/components/ui/link-button'
 import Link from 'next/link'
-import { daysUntilDeadline } from '@/lib/domain/challenge'
 import {
-  AlertTriangle,
-  Clock,
   Swords,
   Users,
   Trophy,
@@ -42,20 +39,6 @@ export default async function AdminDashboardPage() {
     .limit(1)
     .maybeSingle()
 
-  // Desafios a expirar (< 2 dias)
-  const soon = new Date()
-  soon.setDate(soon.getDate() + 2)
-
-  const { data: expiringChallenges } = await supabase
-    .from('challenges')
-    .select(`
-      *,
-      challenger_team:teams!challenges_challenger_team_id_fkey(name),
-      challenged_team:teams!challenges_challenged_team_id_fkey(name)
-    `)
-    .not('status', 'in', '("completed","cancelled","expired")')
-    .lte('deadline_at', soon.toISOString())
-    .order('deadline_at')
 
   // Resultados por validar
   const { data: pendingResults } = await supabase
@@ -100,13 +83,6 @@ export default async function AdminDashboardPage() {
     .limit(10)
 
   const stats = [
-    {
-      label: 'A expirar',
-      value: expiringChallenges?.length ?? 0,
-      icon: Clock,
-      color: 'text-orange-500',
-      urgent: (expiringChallenges?.length ?? 0) > 0,
-    },
     {
       label: 'Resultados pendentes',
       value: pendingResults?.length ?? 0,
@@ -178,37 +154,6 @@ export default async function AdminDashboardPage() {
         ))}
       </div>
 
-      {/* Desafios a expirar */}
-      {(expiringChallenges?.length ?? 0) > 0 && (
-        <div>
-          <h2 className="text-base font-semibold mb-2 flex items-center gap-2">
-            <Clock className="size-4 text-orange-500" />
-            A expirar em breve
-          </h2>
-          <div className="space-y-2">
-            {expiringChallenges!.map((c) => {
-              const days = daysUntilDeadline(c)
-              return (
-                <Link key={c.id} href={`/challenges/${c.id}`}>
-                  <Card className="hover:bg-muted/50 cursor-pointer border-orange-200">
-                    <CardContent className="pt-3 pb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">
-                          {c.challenger_team?.name} vs {c.challenged_team?.name}
-                        </p>
-                        <p className="text-xs text-orange-600">
-                          {days <= 0 ? 'Prazo esgotado!' : `${days} dia${days !== 1 ? 's' : ''} restante${days !== 1 ? 's' : ''}`}
-                        </p>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    </CardContent>
-                  </Card>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Resultados pendentes */}
       {(pendingResults?.length ?? 0) > 0 && (
