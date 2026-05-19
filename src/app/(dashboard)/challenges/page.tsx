@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { ChallengeStatusBadge } from '@/components/challenges/challenge-status-badge'
-import { daysUntilDeadline } from '@/lib/domain/challenge'
 import Link from 'next/link'
 import { Swords, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
@@ -59,7 +58,6 @@ export default async function ChallengesPage() {
 
   type ChallengeItem = NonNullable<typeof challenges>[number]
   function ChallengeCard({ c }: { c: ChallengeItem }) {
-    const days = daysUntilDeadline(c)
     return (
       <Link href={`/challenges/${c.id}`}>
         <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
@@ -72,11 +70,7 @@ export default async function ChallengesPage() {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {c.category?.code} ·{' '}
-                  {c.status === 'completed' || c.status === 'cancelled' || c.status === 'expired'
-                    ? format(new Date(c.created_at), 'dd MMM yyyy', { locale: ptBR })
-                    : days > 0
-                    ? `Prazo: ${days} dia${days !== 1 ? 's' : ''}`
-                    : 'Prazo esgotado'}
+                  {format(new Date(c.created_at), 'dd MMM yyyy', { locale: ptBR })}
                 </p>
               </div>
             </div>
