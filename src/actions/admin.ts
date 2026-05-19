@@ -153,6 +153,54 @@ export async function resetTeamPassword(teamId: string): Promise<{ email: string
 }
 
 // ============================================================
+// Editar dados de uma dupla (substituição de jogador, etc.)
+// ============================================================
+
+export async function editTeam(
+  teamId: string,
+  data: {
+    name: string
+    player1_name: string
+    player1_email: string
+    player2_name: string
+    player2_email: string
+  }
+): Promise<{ error?: string }> {
+  try {
+    const { profile, admin } = await requireAdmin()
+
+    if (!data.name.trim()) return { error: 'Nome da dupla é obrigatório' }
+    if (!data.player1_name.trim()) return { error: 'Nome do jogador 1 é obrigatório' }
+    if (!data.player2_name.trim()) return { error: 'Nome do jogador 2 é obrigatório' }
+
+    const { data: prev } = await admin.from('teams').select('*').eq('id', teamId).single()
+    if (!prev) return { error: 'Dupla não encontrada' }
+
+    await admin.from('teams').update({
+      name: data.name.trim(),
+      player1_name: data.player1_name.trim(),
+      player1_email: data.player1_email.trim(),
+      player2_name: data.player2_name.trim(),
+      player2_email: data.player2_email.trim(),
+    }).eq('id', teamId)
+
+    await admin.from('audit_logs').insert({
+      actor_profile_id: profile.id,
+      action: 'team.edited',
+      entity_type: 'teams',
+      entity_id: teamId,
+      metadata: { before: { name: prev.name, player1_name: prev.player1_name, player2_name: prev.player2_name }, after: data },
+    })
+
+    revalidatePath('/admin/teams')
+    revalidatePath('/ranking')
+    return {}
+  } catch (e: any) {
+    return { error: e.message ?? 'Erro ao editar dupla' }
+  }
+}
+
+// ============================================================
 // Atualizar estado de uma dupla
 // ============================================================
 

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { TeamStatusForm } from '@/components/admin/team-status-form'
 import { AddTeamForm } from '@/components/admin/add-team-form'
 import { ResetPasswordButton } from '@/components/admin/reset-password-button'
+import { EditTeamForm } from '@/components/admin/edit-team-form'
 import { Users } from 'lucide-react'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -116,6 +117,14 @@ export default async function AdminTeamsPage() {
                       <TeamStatusForm teamId={t.id} currentStatus={t.status} />
                     </div>
                   </div>
+                  <EditTeamForm team={{
+                    id: t.id,
+                    name: t.name,
+                    player1_name: t.player1_name ?? '',
+                    player1_email: t.player1_email ?? '',
+                    player2_name: t.player2_name ?? '',
+                    player2_email: t.player2_email ?? '',
+                  }} />
                 </CardContent>
               </Card>
             ))}
