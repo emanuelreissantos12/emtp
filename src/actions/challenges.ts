@@ -734,7 +734,8 @@ export async function confirmProposal(proposalId: string) {
 // Anular desafio (dupla envolvida ou admin)
 // ============================================================
 
-export async function cancelChallenge(challengeId: string) {
+export async function cancelChallenge(challengeId: string): Promise<{ error?: string }> {
+  try {
   const { supabase, profile } = await getSessionProfile()
   const admin = createAdminClient()
 
@@ -748,16 +749,16 @@ export async function cancelChallenge(challengeId: string) {
     .eq('id', challengeId)
     .single()
 
-  if (!challenge) throw new Error('Desafio não encontrado')
+  if (!challenge) return { error: 'Desafio não encontrado' }
 
   if (['completed', 'cancelled', 'expired'].includes(challenge.status)) {
-    throw new Error('Este desafio já não pode ser anulado')
+    return { error: 'Este desafio já não pode ser anulado' }
   }
 
   const isAdmin = profile.role === 'admin'
   const isChallenger = (challenge.challenger_team as any)?.captain_profile_id === profile.id
   const isChallenged = (challenge.challenged_team as any)?.captain_profile_id === profile.id
-  if (!isAdmin && !isChallenger && !isChallenged) throw new Error('Sem permissão')
+  if (!isAdmin && !isChallenger && !isChallenged) return { error: 'Sem permissão' }
 
   await admin.from('challenges').update({ status: 'cancelled' }).eq('id', challengeId)
 
@@ -795,6 +796,10 @@ export async function cancelChallenge(challengeId: string) {
 
   revalidatePath(`/challenges/${challengeId}`)
   revalidatePath('/challenges')
+  return {}
+  } catch (e: any) {
+    return { error: e.message ?? 'Erro ao anular desafio' }
+  }
 }
 
 // ============================================================

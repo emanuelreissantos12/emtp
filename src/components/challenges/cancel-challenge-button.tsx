@@ -13,12 +13,12 @@ export function CancelChallengeButton({ challengeId }: { challengeId: string }) 
   function handleClick() {
     if (!confirming) { setConfirming(true); return }
     startTransition(async () => {
-      try {
-        await cancelChallenge(challengeId)
-        toast.success('Desafio anulado.')
-      } catch (e: any) {
-        toast.error(e.message ?? 'Erro ao anular desafio')
+      const result = await cancelChallenge(challengeId)
+      if (result?.error) {
+        toast.error(result.error)
         setConfirming(false)
+      } else {
+        toast.success('Desafio anulado.')
       }
     })
   }
